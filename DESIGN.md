@@ -13,7 +13,8 @@ Dokumen ini menjelaskan bahasa visual `index.html`. Baca dulu sebelum mengubah t
 Sumber inspirasi: dunia liturgi itu sendiri — kertas misa/buletin paroki, kayu mimbar, warna liturgi (hijau = masa biasa, paling sering dipakai sepanjang tahun; merah/marun = liturgi merah), kuningan lilin altar. **Sengaja dihindari**: kombinasi krem+terracotta generik yang jadi default banyak AI design tool.
 
 **Elemen ciri khas (dipakai secukupnya, TIDAK di semua tempat):**
-- Kalender kerja memakai sidebar mini-bulan dan grid waktu mingguan; warna sesi tetap mengambil palet liturgi yang sama
+- Landing page memakai workspace input jadwal yang mengadaptasi alur `frmInputJadwal` dari VBA: kontrol minggu/sesi di atas, tiga kelompok kategori di kiri, area pengisian di tengah, dan checklist status yang selalu terlihat di kanan
+- Kalender kerja tetap tersedia sebagai tampilan sekunder dengan sidebar mini-bulan dan grid waktu mingguan; warna sesi tetap mengambil palet liturgi yang sama
 - Garis emas tipis di bawah header (masthead), seperti garis pembatas di buletin paroki cetak
 - Ikon kecil (emoji Unicode, bukan icon font/SVG library) di depan tiap tab navigasi, lewat CSS `::before` — BUKAN elemen HTML nested (lihat bagian 4 kenapa ini penting)
 
@@ -117,10 +118,13 @@ Cara ini berhasil menemukan 2 bug nyata sebelum dikirim ke pengguna (teks tombol
 
 ---
 
-## 8. Kalender kerja
+## 8. Workspace penjadwalan dan kalender kerja
 
-- Tampilan awal adalah grid minggu dengan kontrol Hari ini, sebelumnya/berikutnya, dan pilihan Minggu/Bulan.
-- Tombol Buat Jadwal atau slot kosong membuka modal tanggal Minggu + pilihan sesi; form tidak lagi selalu memenuhi bagian atas halaman.
+- Tampilan awal adalah **Input Jadwal**, bukan kalender. Struktur mengikuti pola kerja form VBA lama tanpa menyalin tampilannya secara literal.
+- Header workspace berisi navigasi minggu, tanggal Minggu, pilihan sesi, status akhir pekan, dan tombol Buka/Buat Jadwal.
+- Tiga kelompok kategori mengikuti urutan kerja VBA: (1) Paduan Suara/Organis/Pemazmur, (2) Lektor/Misdinar/Prodiakon, (3) Tatib/Hias Altar.
+- Checklist status sesi selalu terlihat di panel kanan pada desktop dan pindah ke bawah pada HP. Pilihan individu tetap memakai modal multi-select agar kuota dapat diisi sekali simpan.
+- Kalender mingguan/bulanan tetap tersedia melalui tombol **Lihat Kalender**. Tombol Buat Jadwal atau slot kosong membuka modal tanggal Minggu + pilihan sesi.
 - `Sessions` tetap memakai skema lama tanpa kolom jam. Posisi visual tetap: Sabtu Sore 17.00, Minggu Pagi 08.00, Minggu Sore 17.00, sesi khusus 12.00.
 - Jam tersebut hanya metadata presentasi di client dan tidak boleh diperlakukan sebagai waktu misa faktual tanpa keputusan produk baru.
-- Klik acara membuka panel detail akhir pekan yang sudah ada, termasuk penugasan, finalisasi, cetak, dan ekspor.
+- Klik acara pada kalender membuka detail akhir pekan; semua aksi penugasan, finalisasi, cetak, dan ekspor memakai API serta aturan izin yang sama dengan workspace utama.

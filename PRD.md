@@ -117,9 +117,11 @@ Semua pengecekan "dobel/berturut-turut" di atas beroperasi pada **cakupan satu a
 
 ## 6. Fitur (per tab di aplikasi)
 
-### 6.1 Kalender
+### 6.1 Penjadwalan
+- Landing page default adalah workspace input yang mengadaptasi `frmInputJadwal` VBA: pilih minggu dan sesi di header, isi kategori bertahap (Paduan Suara/Organis/Pemazmur → Lektor/Misdinar/Prodiakon → Tatib/Hias Altar), dan pantau checklist kelengkapan yang selalu terlihat
+- Pilihan petugas individu memakai multi-select dengan batas sisa kuota, lalu disimpan sebagai satu batch; aturan konflik, peringatan, optimistic concurrency, dan audit tetap dijalankan server-side
 - Buka/buat akhir pekan dari modal: pilih tanggal Minggu, **centang sesi mana saja yang ada** (Sabtu Sore/Minggu Pagi/Minggu Sore — tidak dipaksa selalu 3), tambah sesi khusus kapan saja (nama + tanggal bebas, bisa diedit/dihapus selama belum ada penugasan)
-- Lihat kalender kerja mingguan (default) atau bulanan, status tiap akhir pekan (Draft/Lengkap/Final), mini-kalender desktop, dan agenda 3 hari di HP
+- Lihat kalender kerja sebagai tampilan sekunder, mingguan atau bulanan, dengan status tiap akhir pekan (Draft/Lengkap/Final), mini-kalender desktop, dan agenda 3 hari di HP
 - Jam sesi pada kalender adalah posisi visual tetap (17.00/08.00/17.00; sesi khusus 12.00), bukan kolom data baru di `Sessions`
 - Detail akhir pekan: isi/hapus petugas individu per peran per sesi, isi/batalkan Koor & Tatib per sesi, isi/batalkan Hias Altar (tingkat akhir pekan)
 - Finalisasi (Admin only) — mengunci akhir pekan dari perubahan oleh Scheduler; Buka Kembali membatalkan finalisasi

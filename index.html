@@ -145,6 +145,55 @@
   .baris-peran button, td button { padding: 6px 12px; font-size: 13px; min-height: 32px; }
   .kecil { font-size: 12px; color: var(--abu-hangat); }
 
+  /* --- Workspace input jadwal: adaptasi form VBA ke alur web --- */
+  .mode-utama { display: flex; gap: 6px; margin-bottom: 12px; }
+  .mode-utama button { background: transparent; color: var(--tinta); border: 1px solid var(--garis); }
+  .mode-utama button.aktif { background: var(--hijau); color: #fff; border-color: var(--hijau); }
+  .workspace-jadwal {
+    background: #fff; border: 1px solid var(--garis-lembut); border-radius: 14px;
+    box-shadow: var(--bayang); overflow: hidden;
+  }
+  .workspace-kepala { padding: 18px; background: var(--kertas-kartu); border-bottom: 1px solid var(--garis); }
+  .workspace-judul { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+  .workspace-judul h2 { margin: 0 0 3px; font-size: 19px; }
+  .workspace-kontrol { display: grid; grid-template-columns: auto minmax(145px, 1fr) minmax(170px, 1fr) auto; gap: 10px; align-items: end; }
+  .workspace-kontrol label { display: block; font-size: 12px; color: var(--abu-hangat); }
+  .workspace-kontrol input, .workspace-kontrol select { display: block; width: 100%; margin-top: 4px; }
+  .workspace-nav-minggu { display: flex; gap: 4px; }
+  .workspace-ringkasan { min-height: 35px; display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
+  .workspace-grid { display: grid; grid-template-columns: 188px minmax(0, 1fr) 230px; min-height: 470px; }
+  .workspace-kategori { padding: 14px; background: var(--kertas-kartu); border-right: 1px solid var(--garis-lembut); }
+  .workspace-kategori h3 { margin: 2px 7px 10px; font-size: 12px; color: var(--abu-hangat); text-transform: uppercase; letter-spacing: 0.04em; }
+  .workspace-kategori button {
+    width: 100%; margin: 3px 0; padding: 10px 11px; background: transparent; color: var(--tinta);
+    border: 1px solid transparent; text-align: left; font-size: 13px;
+  }
+  .workspace-kategori button:hover { background: rgba(79,107,73,0.07); }
+  .workspace-kategori button.aktif { background: #fff; border-color: var(--garis); color: var(--hijau-tua); box-shadow: var(--bayang); }
+  .workspace-panel { padding: 20px; min-width: 0; }
+  .workspace-panel h2 { margin: 0 0 4px; font-size: 17px; }
+  .workspace-panel > .kecil { display: block; margin-bottom: 14px; }
+  .workspace-status { padding: 17px 14px; background: var(--kertas-kartu); border-left: 1px solid var(--garis-lembut); }
+  .workspace-status h3 { margin: 0 0 3px; font-size: 14px; }
+  .workspace-row {
+    display: grid; grid-template-columns: minmax(120px, 0.7fr) minmax(180px, 1.3fr) auto;
+    align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px dashed var(--garis-lembut);
+  }
+  .workspace-row:last-child { border-bottom: none; }
+  .workspace-row h3 { margin: 0; font-family: "Source Sans 3", sans-serif; font-size: 14px; }
+  .workspace-terisi { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-width: 0; }
+  .chip-petugas { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 16px; background: #E4EEE0; color: var(--hijau-tua); font-size: 12px; }
+  .chip-petugas .tautan { color: var(--marun); line-height: 1; }
+  .workspace-aksi { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--garis-lembut); display: flex; gap: 8px; flex-wrap: wrap; }
+  .status-sesi-label { margin: 10px 0; padding-bottom: 9px; border-bottom: 1px solid var(--garis-lembut); font-size: 12px; color: var(--abu-hangat); }
+  .status-baris { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12.5px; }
+  .status-tanda { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex: 0 0 auto; }
+  .status-ok .status-tanda { background: #E4EEE0; color: var(--hijau-tua); }
+  .status-sebagian .status-tanda { background: #F6EBCF; color: var(--emas); }
+  .status-kosong .status-tanda { background: var(--marun-muda); color: var(--marun); }
+  .workspace-kosong { text-align: center; padding: 54px 20px; color: var(--abu-hangat); }
+  .workspace-kosong h2 { color: var(--kayu); }
+
   /* --- Kalender kerja: navigasi di kiri, jadwal di kanan --- */
   .kalender-aplikasi {
     display: grid; grid-template-columns: 214px minmax(0, 1fr); min-height: 650px;
@@ -282,6 +331,22 @@
     .kalender-grid { min-height: 260px; }
     .kalender-petunjuk { display: block; padding: 9px 14px; background: #F6EBCF; color: #7A5A16; font-size: 11px; }
     #kartuDetailAkhirPekan { margin-top: 14px; }
+    .mode-utama { position: sticky; top: 0; z-index: 10; background: var(--kertas); padding: 4px 0; }
+    .mode-utama button { flex: 1; }
+    .workspace-kepala { padding: 14px; }
+    .workspace-judul { display: block; }
+    .workspace-ringkasan { justify-content: flex-start; margin-top: 8px; }
+    .workspace-kontrol { grid-template-columns: auto 1fr; }
+    .workspace-kontrol label { grid-column: span 1; }
+    .workspace-kontrol #btnBukaWorkspace { grid-column: 1 / -1; }
+    .workspace-grid { display: block; min-height: 0; }
+    .workspace-kategori { display: flex; overflow-x: auto; gap: 5px; border-right: 0; border-bottom: 1px solid var(--garis-lembut); }
+    .workspace-kategori h3 { display: none; }
+    .workspace-kategori button { width: auto; min-width: 145px; white-space: nowrap; text-align: center; }
+    .workspace-panel { padding: 16px 14px; }
+    .workspace-status { border-left: 0; border-top: 1px solid var(--garis-lembut); }
+    .workspace-row { grid-template-columns: 1fr auto; }
+    .workspace-row .workspace-terisi { grid-column: 1 / -1; grid-row: 2; }
   }
 
   @media print {
@@ -301,7 +366,7 @@
 </header>
 
 <nav id="navigasi">
-  <button data-tab="kalender" class="aktif">Kalender</button>
+  <button data-tab="kalender" class="aktif">Penjadwalan</button>
   <button data-tab="petugas">Kelola Petugas</button>
   <button data-tab="aturan">Pengaturan Aturan</button>
   <button data-tab="audit">Riwayat Audit</button>
@@ -311,47 +376,97 @@
 <main>
   <div id="pesanGlobal"></div>
 
-  <!-- ===================== TAB KALENDER ===================== -->
+  <!-- ===================== TAB PENJADWALAN ===================== -->
   <section id="tabKalender">
-    <div class="kalender-aplikasi">
-      <aside class="kalender-sidebar">
-        <button id="btnBuatJadwalBaru" class="btn-buat-jadwal">Buat Jadwal</button>
-        <div>
-          <div class="mini-toolbar">
-            <strong id="labelMiniBulan"></strong>
-            <span>
-              <button class="tombol-ikon" id="btnMiniSebelumnya" aria-label="Bulan sebelumnya">&#8249;</button>
-              <button class="tombol-ikon" id="btnMiniBerikutnya" aria-label="Bulan berikutnya">&#8250;</button>
-            </span>
-          </div>
-          <div id="miniKalender" class="mini-kalender"></div>
-        </div>
-        <div class="kalender-legenda">
-          <h3>Jenis sesi</h3>
-          <span><i class="titik-legenda acara-sabtu"></i>Sabtu Sore · 17.00</span>
-          <span><i class="titik-legenda acara-pagi"></i>Minggu Pagi · 08.00</span>
-          <span><i class="titik-legenda acara-sore"></i>Minggu Sore · 17.00</span>
-          <span><i class="titik-legenda acara-khusus"></i>Sesi Khusus · 12.00</span>
-        </div>
-      </aside>
+    <div class="mode-utama" aria-label="Mode penjadwalan">
+      <button id="btnModeInputJadwal" class="aktif">Input Jadwal</button>
+      <button id="btnModeLihatKalender">Lihat Kalender</button>
+    </div>
 
-      <div class="kalender-utama">
-        <div class="kalender-toolbar">
-          <button class="sekunder btn-hari-ini" id="btnHariIni">Hari ini</button>
-          <button class="tombol-ikon" id="btnBulanSebelumnya" aria-label="Periode sebelumnya">&#8249;</button>
-          <button class="tombol-ikon" id="btnBulanBerikutnya" aria-label="Periode berikutnya">&#8250;</button>
-          <h2 id="labelBulan"></h2>
-          <div class="kontrol-tampilan" aria-label="Tampilan kalender">
-            <button id="btnTampilanMinggu" class="aktif">Minggu</button>
-            <button id="btnTampilanBulan">Bulan</button>
+    <div id="areaInputJadwal" class="workspace-jadwal">
+      <div class="workspace-kepala">
+        <div class="workspace-judul">
+          <div>
+            <h2>Jadwal Liturgi Paroki</h2>
+            <span class="kecil" id="labelWorkspaceWeek">Pilih minggu untuk mulai menyusun jadwal.</span>
           </div>
+          <div class="workspace-ringkasan" id="ringkasanWorkspace"></div>
         </div>
-        <div class="kalender-petunjuk">Tampilan ringkas 3 hari. Gunakan panah untuk melihat periode berikutnya.</div>
-        <div id="daftarKalender" class="kalender-grid"><div class="memuat">Memuat...</div></div>
+        <div class="workspace-kontrol">
+          <div class="workspace-nav-minggu">
+            <button class="sekunder tombol-ikon" id="btnWorkspacePrev" aria-label="Minggu sebelumnya">&#8249;</button>
+            <button class="sekunder tombol-ikon" id="btnWorkspaceNext" aria-label="Minggu berikutnya">&#8250;</button>
+          </div>
+          <label>Tanggal Minggu
+            <input type="date" id="inputTanggalWorkspace">
+          </label>
+          <label>Sesi Misa
+            <select id="pilihSesiWorkspace">
+              <option value="SABTU_SORE">Sabtu Sore</option>
+              <option value="MINGGU_PAGI">Minggu Pagi</option>
+              <option value="MINGGU_SORE">Minggu Sore</option>
+            </select>
+          </label>
+          <button id="btnBukaWorkspace">Buka Jadwal</button>
+        </div>
+      </div>
+      <div class="workspace-grid">
+        <aside class="workspace-kategori" id="kategoriWorkspace">
+          <h3>Kategori Petugas</h3>
+          <button class="aktif" data-kategori="WAVE1">Paduan Suara, Organis &amp; Pemazmur</button>
+          <button data-kategori="WAVE2">Lektor, Misdinar &amp; Prodiakon</button>
+          <button data-kategori="WAVE3">Tatib &amp; Hias Altar</button>
+        </aside>
+        <div class="workspace-panel" id="panelWorkspace">
+          <div class="workspace-kosong"><h2>Belum ada jadwal dibuka</h2><p>Pilih tanggal Minggu lalu buka atau buat jadwal untuk mulai mengisi petugas.</p></div>
+        </div>
+        <aside class="workspace-status" id="statusWorkspace">
+          <h3>Status Sesi</h3>
+          <div class="status-sesi-label">Belum ada sesi dipilih</div>
+        </aside>
       </div>
     </div>
 
-    <div class="kartu sembunyi" id="kartuDetailAkhirPekan"></div>
+    <div id="areaKalenderJadwal" class="sembunyi">
+      <div class="kalender-aplikasi">
+        <aside class="kalender-sidebar">
+          <button id="btnBuatJadwalBaru" class="btn-buat-jadwal">Buat Jadwal</button>
+          <div>
+            <div class="mini-toolbar">
+              <strong id="labelMiniBulan"></strong>
+              <span>
+                <button class="tombol-ikon" id="btnMiniSebelumnya" aria-label="Bulan sebelumnya">&#8249;</button>
+                <button class="tombol-ikon" id="btnMiniBerikutnya" aria-label="Bulan berikutnya">&#8250;</button>
+              </span>
+            </div>
+            <div id="miniKalender" class="mini-kalender"></div>
+          </div>
+          <div class="kalender-legenda">
+            <h3>Jenis sesi</h3>
+            <span><i class="titik-legenda acara-sabtu"></i>Sabtu Sore · 17.00</span>
+            <span><i class="titik-legenda acara-pagi"></i>Minggu Pagi · 08.00</span>
+            <span><i class="titik-legenda acara-sore"></i>Minggu Sore · 17.00</span>
+            <span><i class="titik-legenda acara-khusus"></i>Sesi Khusus · 12.00</span>
+          </div>
+        </aside>
+
+        <div class="kalender-utama">
+          <div class="kalender-toolbar">
+            <button class="sekunder btn-hari-ini" id="btnHariIni">Hari ini</button>
+            <button class="tombol-ikon" id="btnBulanSebelumnya" aria-label="Periode sebelumnya">&#8249;</button>
+            <button class="tombol-ikon" id="btnBulanBerikutnya" aria-label="Periode berikutnya">&#8250;</button>
+            <h2 id="labelBulan"></h2>
+            <div class="kontrol-tampilan" aria-label="Tampilan kalender">
+              <button id="btnTampilanMinggu" class="aktif">Minggu</button>
+              <button id="btnTampilanBulan">Bulan</button>
+            </div>
+          </div>
+          <div class="kalender-petunjuk">Tampilan ringkas 3 hari. Gunakan panah untuk melihat periode berikutnya.</div>
+          <div id="daftarKalender" class="kalender-grid"><div class="memuat">Memuat...</div></div>
+        </div>
+      </div>
+      <div class="kartu sembunyi" id="kartuDetailAkhirPekan"></div>
+    </div>
   </section>
 
   <!-- ===================== TAB KELOLA PETUGAS ===================== -->
@@ -497,6 +612,7 @@ var state = {
   aturanCache: null, aturanSedangDimuat: null,
   auditItems: [], auditOffset: 0, auditHasMore: true, auditSedangDimuat: null,
   bulanTampil: new Date(), tanggalFokus: new Date(), modeKalender: 'MINGGU',
+  modePenjadwalan: 'INPUT', kategoriWorkspace: 'WAVE1', sesiWorkspace: 'SABTU_SORE',
   akhirPekanKalender: [], kalenderSedangDimuat: null, akhirPekanAktif: null,
   aksiPeringatanTertunda: null // dipakai modal peringatan untuk menyimpan aksi yang mau dijalankan ulang
 };
@@ -591,6 +707,7 @@ function kapital(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 window.addEventListener('DOMContentLoaded', function () {
   state.tanggalFokus = awalHari_(new Date());
   state.bulanTampil = new Date(state.tanggalFokus.getFullYear(), state.tanggalFokus.getMonth(), 1);
+  document.getElementById('inputTanggalWorkspace').value = kunciTanggal_(tanggalMingguDariTanggal_(state.tanggalFokus));
   var rentangAwal = parameterKalenderTampil_();
   document.getElementById('labelBulan').textContent = rentangAwal.label;
   renderMiniKalender_();
@@ -611,6 +728,7 @@ window.addEventListener('DOMContentLoaded', function () {
     aturAksesKalender_();
     isiPilihanWilayahLingkungan();
     tampilkanDaftarKalender_(data.akhirPekanList || []);
+    sinkronWorkspaceDariRingkasan_(true);
   }).catch(function (e) { tampilkanPesan('error', 'Gagal memuat data awal: ' + e.message); });
 });
 
@@ -679,6 +797,280 @@ function parameterKalenderTampil_() {
 function aturAksesKalender_() {
   var bolehMengubah = state.peran === 'ADMIN' || state.peran === 'SCHEDULER';
   document.getElementById('btnBuatJadwalBaru').classList.toggle('sembunyi', !bolehMengubah);
+}
+
+// ====================================================================
+// LANDING WORKSPACE — adaptasi alur frmInputJadwal dari workbook VBA
+// ====================================================================
+document.getElementById('btnModeInputJadwal').addEventListener('click', function () { aturModePenjadwalan_('INPUT'); });
+document.getElementById('btnModeLihatKalender').addEventListener('click', function () { aturModePenjadwalan_('KALENDER'); });
+document.getElementById('btnWorkspacePrev').addEventListener('click', function () { geserMingguWorkspace_(-7); });
+document.getElementById('btnWorkspaceNext').addEventListener('click', function () { geserMingguWorkspace_(7); });
+document.getElementById('inputTanggalWorkspace').addEventListener('change', function () { ubahTanggalWorkspace_(this.value); });
+document.getElementById('pilihSesiWorkspace').addEventListener('change', function () {
+  state.sesiWorkspace = this.value;
+  if (state.akhirPekanAktif) tampilkanWorkspaceJadwal_(state.akhirPekanAktif);
+});
+document.getElementById('kategoriWorkspace').addEventListener('click', function (e) {
+  var tombol = e.target.closest ? e.target.closest('button[data-kategori]') : null;
+  if (!tombol) return;
+  state.kategoriWorkspace = tombol.getAttribute('data-kategori');
+  document.querySelectorAll('#kategoriWorkspace button').forEach(function (b) { b.classList.toggle('aktif', b === tombol); });
+  if (state.akhirPekanAktif) tampilkanWorkspaceJadwal_(state.akhirPekanAktif);
+});
+document.getElementById('btnBukaWorkspace').addEventListener('click', function (e) {
+  var ringkasan = cariRingkasanWorkspace_();
+  if (ringkasan) {
+    jalankanDenganTombolSibuk_(e.target, 'Memuat...', function () { return bukaWorkspaceAkhirPekan_(ringkasan.weekendId); });
+  } else {
+    bukaModalBuatJadwal(document.getElementById('inputTanggalWorkspace').value);
+  }
+});
+
+function aturModePenjadwalan_(mode) {
+  state.modePenjadwalan = mode;
+  document.getElementById('btnModeInputJadwal').classList.toggle('aktif', mode === 'INPUT');
+  document.getElementById('btnModeLihatKalender').classList.toggle('aktif', mode === 'KALENDER');
+  document.getElementById('areaInputJadwal').classList.toggle('sembunyi', mode !== 'INPUT');
+  document.getElementById('areaKalenderJadwal').classList.toggle('sembunyi', mode !== 'KALENDER');
+  if (mode === 'INPUT') {
+    if (state.akhirPekanAktif && tanggalAktifSamaDenganWorkspace_()) tampilkanWorkspaceJadwal_(state.akhirPekanAktif);
+    else sinkronWorkspaceDariRingkasan_(false);
+  }
+}
+
+function geserMingguWorkspace_(jumlahHari) {
+  var nilai = document.getElementById('inputTanggalWorkspace').value;
+  var tanggal = nilai ? tanggalDariKunci_(nilai) : tanggalMingguDariTanggal_(new Date());
+  ubahTanggalWorkspace_(kunciTanggal_(tambahHari_(tanggal, jumlahHari)));
+}
+
+function ubahTanggalWorkspace_(nilai) {
+  if (!nilai) return;
+  var minggu = tanggalMingguDariTanggal_(tanggalDariKunci_(nilai));
+  document.getElementById('inputTanggalWorkspace').value = kunciTanggal_(minggu);
+  state.tanggalFokus = new Date(minggu);
+  state.bulanTampil = new Date(minggu.getFullYear(), minggu.getMonth(), 1);
+  state.akhirPekanAktif = null;
+  document.getElementById('panelWorkspace').innerHTML = '<div class="memuat">Memeriksa jadwal minggu ini...</div>';
+  document.getElementById('statusWorkspace').innerHTML = '<h3>Status Sesi</h3><div class="memuat">Memuat...</div>';
+  muatKalenderBulan().then(function () { sinkronWorkspaceDariRingkasan_(true); });
+}
+
+function cariRingkasanWorkspace_() {
+  var kunci = document.getElementById('inputTanggalWorkspace').value;
+  return (state.akhirPekanKalender || []).filter(function (w) { return formatTanggalUntukInput_(w.tanggalAcuan) === kunci; })[0] || null;
+}
+
+function tanggalAktifSamaDenganWorkspace_() {
+  return state.akhirPekanAktif && formatTanggalUntukInput_(state.akhirPekanAktif.tanggalAcuan) === document.getElementById('inputTanggalWorkspace').value;
+}
+
+function nomorMingguIsoWorkspace_(tanggal) {
+  var d = new Date(Date.UTC(tanggal.getFullYear(), tanggal.getMonth(), tanggal.getDate()));
+  var hari = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - hari);
+  var awalTahun = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - awalTahun) / 86400000) + 1) / 7);
+}
+
+function labelMingguWorkspace_(tanggal) {
+  var d = new Date(tanggal);
+  var awalBulan = new Date(d.getFullYear(), d.getMonth(), 1);
+  var nomor = nomorMingguIsoWorkspace_(d) - nomorMingguIsoWorkspace_(awalBulan) + 1;
+  return 'Minggu ke-' + nomor + ' · ' + d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+}
+
+function sinkronWorkspaceDariRingkasan_(bukaOtomatis) {
+  var tanggalInput = document.getElementById('inputTanggalWorkspace').value;
+  if (!tanggalInput) return;
+  var tanggal = tanggalDariKunci_(tanggalInput);
+  document.getElementById('labelWorkspaceWeek').textContent = labelMingguWorkspace_(tanggal);
+  var ringkasan = cariRingkasanWorkspace_();
+  var bolehMembuat = state.peran === 'ADMIN' || state.peran === 'SCHEDULER';
+  var tombol = document.getElementById('btnBukaWorkspace');
+  tombol.textContent = ringkasan ? 'Buka Jadwal' : 'Buat Jadwal';
+  tombol.disabled = !ringkasan && !bolehMembuat;
+
+  if (ringkasan) {
+    var kelas = ringkasan.status === 'FINAL' ? 'final' : (ringkasan.semuaTerpenuhi ? 'complete' : 'draft');
+    var label = ringkasan.status === 'FINAL' ? 'Final' : (ringkasan.semuaTerpenuhi ? 'Lengkap' : 'Belum lengkap');
+    document.getElementById('ringkasanWorkspace').innerHTML = '<span class="lencana ' + kelas + '">' + label + '</span><span class="kecil">' + ringkasan.jumlahSesi + ' sesi</span>';
+    if (bukaOtomatis) bukaWorkspaceAkhirPekan_(ringkasan.weekendId);
+  } else {
+    sinkronPilihanSesiWorkspace_(null);
+    document.getElementById('ringkasanWorkspace').innerHTML = '<span class="lencana draft">Belum dibuat</span>';
+    document.getElementById('panelWorkspace').innerHTML = '<div class="workspace-kosong"><h2>Jadwal minggu ini belum dibuat</h2><p>' + (bolehMembuat ? 'Klik “Buat Jadwal” untuk memilih sesi yang tersedia.' : 'Hubungi Admin atau Penjadwal untuk membuat jadwal.') + '</p></div>';
+    document.getElementById('statusWorkspace').innerHTML = '<h3>Status Sesi</h3><div class="status-sesi-label">Belum ada jadwal</div>';
+  }
+}
+
+function bukaWorkspaceAkhirPekan_(weekendId) {
+  document.getElementById('panelWorkspace').innerHTML = '<div class="memuat">Memuat petugas dan status...</div>';
+  document.getElementById('statusWorkspace').innerHTML = '<h3>Status Sesi</h3><div class="memuat">Memuat...</div>';
+  return panggilServer('api_ambilDetailAkhirPekan', weekendId).then(function (detail) {
+    state.akhirPekanAktif = detail;
+    tampilkanWorkspaceJadwal_(detail);
+    return detail;
+  }).catch(function (e) {
+    tampilkanPesan('error', e.message);
+    document.getElementById('panelWorkspace').innerHTML = '<div class="pesan-error">' + escapeHtml(e.message) + '</div>';
+    return null;
+  });
+}
+
+function peranWorkspace_(detail, namaAlternatif) {
+  var alternatif = namaAlternatif.map(function (n) { return n.toLowerCase(); });
+  return detail.peranList.filter(function (p) { return alternatif.indexOf(String(p.namaPeran).toLowerCase()) !== -1; })[0] || null;
+}
+
+function sinkronPilihanSesiWorkspace_(detail) {
+  var pilihan = document.getElementById('pilihSesiWorkspace');
+  var nilaiSebelumnya = state.sesiWorkspace;
+  var opsi = [
+    { nilai: 'SABTU_SORE', label: 'Sabtu Sore' },
+    { nilai: 'MINGGU_PAGI', label: 'Minggu Pagi' },
+    { nilai: 'MINGGU_SORE', label: 'Minggu Sore' }
+  ];
+  ((detail && detail.sesiList) || []).filter(function (s) { return s.jenisSesi === 'KHUSUS'; }).forEach(function (s) {
+    opsi.push({ nilai: 'SESSION:' + s.sessionId, label: s.labelSesi + ' (Khusus)' });
+  });
+  pilihan.innerHTML = opsi.map(function (o) {
+    return '<option value="' + escapeHtml(o.nilai) + '">' + escapeHtml(o.label) + '</option>';
+  }).join('');
+  var masihAda = opsi.some(function (o) { return o.nilai === nilaiSebelumnya; });
+  state.sesiWorkspace = masihAda ? nilaiSebelumnya : 'SABTU_SORE';
+  pilihan.value = state.sesiWorkspace;
+}
+
+function sesiWorkspace_(detail) {
+  if (state.sesiWorkspace.indexOf('SESSION:') === 0) {
+    var sessionId = state.sesiWorkspace.slice(8);
+    return detail.sesiList.filter(function (s) { return s.sessionId === sessionId; })[0] || null;
+  }
+  return detail.sesiList.filter(function (s) { return s.jenisSesi === state.sesiWorkspace; })[0] || null;
+}
+
+function bolehEditWorkspace_(detail) {
+  return (state.peran === 'ADMIN' || state.peran === 'SCHEDULER') && (detail.status !== 'FINAL' || state.peran === 'ADMIN');
+}
+
+function chipIndividuWorkspace_(a, detail, bolehEdit) {
+  return '<span class="chip-petugas">' + escapeHtml(a.namaOrang) + (bolehEdit ? ' <button class="tautan" onclick="hapusPenugasan(\'' + a.assignmentId + '\',\'' + detail.weekendId + '\')" title="Hapus">&times;</button>' : '') + '</span>';
+}
+
+function chipKomunitasWorkspace_(c, detail, bolehEdit) {
+  var nama = c.namaLingkungan || c.namaWilayah;
+  return '<span class="chip-petugas">' + escapeHtml(nama) + (bolehEdit ? ' <button class="tautan" onclick="hapusPenugasanKomunitas(\'' + c.communityAssignmentId + '\',\'' + detail.weekendId + '\')" title="Batalkan">&times;</button>' : '') + '</span>';
+}
+
+function barisPeranWorkspace_(detail, sesi, peran, bolehEdit) {
+  if (!peran) return '<div class="workspace-row"><h3>Peran tidak ditemukan</h3><span class="kecil">Periksa Role_Config.</span></div>';
+  var daftar = sesi.penugasanIndividu.filter(function (a) { return a.roleId === peran.roleId; });
+  var progres = sesi.progres.filter(function (p) { return p.roleId === peran.roleId; })[0];
+  var kuota = progres ? progres.terisi + '/' + progres.dibutuhkan : daftar.length + '/' + peran.jumlahDibutuhkan;
+  var html = '<div class="workspace-row"><h3>' + escapeHtml(peran.namaPeran) + ' <span class="kecil">(' + kuota + ')</span></h3><div class="workspace-terisi">';
+  if (daftar.length === 0) html += '<span class="kecil">Belum dipilih</span>';
+  daftar.forEach(function (a) { html += chipIndividuWorkspace_(a, detail, bolehEdit); });
+  html += '</div>';
+  if (bolehEdit) html += '<button class="sekunder" onclick="bukaPilihKandidat(\'' + sesi.sessionId + '\',\'' + peran.roleId + '\',\'' + escapeHtml(peran.namaPeran) + '\',\'' + detail.weekendId + '\')">Pilih</button>';
+  return html + '</div>';
+}
+
+function barisKomunitasWorkspace_(detail, sesi, jenis, judul, bolehEdit) {
+  var daftar = sesi.penugasanKomunitas.filter(function (c) { return c.jenisPenugasan === jenis; });
+  var html = '<div class="workspace-row"><h3>' + judul + '</h3><div class="workspace-terisi">';
+  if (daftar.length === 0) html += '<span class="kecil">Belum dipilih</span>';
+  daftar.forEach(function (c) { html += chipKomunitasWorkspace_(c, detail, bolehEdit); });
+  html += '</div>';
+  if (bolehEdit && jenis === 'CHOIR') html += '<button class="sekunder" onclick="bukaPilihWilayahKomunitas(\'' + sesi.sessionId + '\',\'CHOIR\',\'Paduan Suara\',\'' + detail.weekendId + '\')">Pilih</button>';
+  if (bolehEdit && jenis === 'TATIB') html += '<button class="sekunder" onclick="bukaPilihLingkunganTatib(\'' + sesi.sessionId + '\',\'' + detail.weekendId + '\')">Pilih</button>';
+  if (bolehEdit && jenis === 'HIAS_ALTAR') html += '<button class="sekunder" onclick="bukaPilihWilayahKomunitas(\'\',\'HIAS_ALTAR\',\'Hias Altar\',\'' + detail.weekendId + '\')">Pilih</button>';
+  return html + '</div>';
+}
+
+function statusWorkspaceItem_(label, terisi, dibutuhkan) {
+  var kelas = terisi >= dibutuhkan ? 'status-ok' : (terisi > 0 ? 'status-sebagian' : 'status-kosong');
+  var tanda = terisi >= dibutuhkan ? '✓' : (terisi > 0 ? '–' : '');
+  return '<div class="status-baris ' + kelas + '"><span class="status-tanda">' + tanda + '</span><span>' + label + ' <span class="kecil">' + terisi + '/' + dibutuhkan + '</span></span></div>';
+}
+
+function tampilkanStatusWorkspace_(detail, sesi) {
+  var html = '<h3>Status Sesi</h3><div class="status-sesi-label">' + escapeHtml(sesi.labelSesi) + ' · ' + formatTanggal(sesi.tanggalSesi) + '</div>';
+  var choir = sesi.penugasanKomunitas.filter(function (c) { return c.jenisPenugasan === 'CHOIR'; }).length;
+  html += statusWorkspaceItem_('Paduan Suara', choir, 1);
+  detail.peranList.forEach(function (peran) {
+    var progres = sesi.progres.filter(function (p) { return p.roleId === peran.roleId; })[0];
+    html += statusWorkspaceItem_(escapeHtml(peran.namaPeran), progres ? progres.terisi : 0, progres ? progres.dibutuhkan : Number(peran.jumlahDibutuhkan) || 1);
+  });
+  var tatib = sesi.penugasanKomunitas.filter(function (c) { return c.jenisPenugasan === 'TATIB'; }).length;
+  var hias = sesi.penugasanKomunitas.filter(function (c) { return c.jenisPenugasan === 'HIAS_ALTAR'; }).length;
+  html += statusWorkspaceItem_('Tatib', tatib, 1);
+  html += statusWorkspaceItem_('Hias Altar', hias, 1);
+  document.getElementById('statusWorkspace').innerHTML = html;
+}
+
+function aksiWorkspace_(detail) {
+  var html = '<button class="sekunder" onclick="cetakJadwal()">Cetak</button>';
+  if (state.peran === 'ADMIN' || state.peran === 'SCHEDULER') {
+    html += '<button class="sekunder" onclick="eksporJadwalKeSheet()">Ekspor Sheet</button>';
+  }
+  if (bolehEditWorkspace_(detail)) {
+    html += '<button class="sekunder" onclick="bukaTambahSesiKhusus(\'' + detail.weekendId + '\')">+ Sesi Khusus</button>';
+  }
+  if (state.peran === 'ADMIN') {
+    html += detail.status === 'FINAL' ? '<button class="bahaya" onclick="bukaKembaliAkhirPekan()">Buka Kembali</button>' : '<button onclick="finalkanAkhirPekan()">Finalkan</button>';
+  }
+  return html;
+}
+
+function tampilkanWorkspaceJadwal_(detail) {
+  state.akhirPekanAktif = detail;
+  document.getElementById('inputTanggalWorkspace').value = formatTanggalUntukInput_(detail.tanggalAcuan);
+  document.getElementById('labelWorkspaceWeek').textContent = labelMingguWorkspace_(detail.tanggalAcuan);
+  var kelas = detail.status === 'FINAL' ? 'final' : (detail.status === 'COMPLETE' ? 'complete' : 'draft');
+  var label = { DRAFT: 'Draft', COMPLETE: 'Lengkap', FINAL: 'Final' }[detail.status] || detail.status;
+  document.getElementById('ringkasanWorkspace').innerHTML = '<span class="lencana ' + kelas + '">' + label + '</span><span class="kecil">Revisi ' + detail.revisi + '</span>';
+  sinkronPilihanSesiWorkspace_(detail);
+  var sesi = sesiWorkspace_(detail);
+  if (!sesi) {
+    var opsiAktif = document.getElementById('pilihSesiWorkspace').selectedOptions[0];
+    var labelSesi = opsiAktif ? opsiAktif.text : state.sesiWorkspace;
+    document.getElementById('panelWorkspace').innerHTML = '<div class="workspace-kosong"><h2>Sesi belum tersedia</h2><p>Sesi ' + escapeHtml(labelSesi) + ' belum dibuat untuk minggu ini.</p>' + (bolehEditWorkspace_(detail) ? '<button onclick="bukaModalBuatJadwal(\'' + formatTanggalUntukInput_(detail.tanggalAcuan) + '\')">Tambah Sesi</button>' : '') + '</div>';
+    document.getElementById('statusWorkspace').innerHTML = '<h3>Status Sesi</h3><div class="status-sesi-label">Sesi belum tersedia</div>';
+    return;
+  }
+
+  var bolehEdit = bolehEditWorkspace_(detail);
+  var organis = peranWorkspace_(detail, ['Organis']);
+  var pemazmur = peranWorkspace_(detail, ['Pemazmur', 'Mazmur']);
+  var lektor = peranWorkspace_(detail, ['Lektor']);
+  var misdinar = peranWorkspace_(detail, ['Misdinar']);
+  var prodiakon = peranWorkspace_(detail, ['Prodiakon']);
+  var html = '';
+  if (state.kategoriWorkspace === 'WAVE1') {
+    html = '<h2>1. Paduan Suara, Organis &amp; Pemazmur</h2><span class="kecil">Isi petugas utama terlebih dahulu agar filter keadilan dapat bekerja untuk kategori berikutnya.</span>';
+    html += barisKomunitasWorkspace_(detail, sesi, 'CHOIR', 'Paduan Suara', bolehEdit);
+    html += barisPeranWorkspace_(detail, sesi, organis, bolehEdit);
+    html += barisPeranWorkspace_(detail, sesi, pemazmur, bolehEdit);
+  } else if (state.kategoriWorkspace === 'WAVE2') {
+    html = '<h2>2. Petugas Individu</h2><span class="kecil">Pilih beberapa nama sekaligus sesuai sisa kuota. Konflik dan urutan terakhir bertugas diperiksa otomatis.</span>';
+    html += barisPeranWorkspace_(detail, sesi, lektor, bolehEdit);
+    html += barisPeranWorkspace_(detail, sesi, misdinar, bolehEdit);
+    html += barisPeranWorkspace_(detail, sesi, prodiakon, bolehEdit);
+  } else {
+    html = '<h2>3. Tatib &amp; Hias Altar</h2><span class="kecil">Tatib dipilih per sesi. Hias Altar berlaku untuk seluruh akhir pekan seperti pada sistem VBA.</span>';
+    html += barisKomunitasWorkspace_(detail, sesi, 'TATIB', 'Tatib (Lingkungan)', bolehEdit);
+    html += barisKomunitasWorkspace_(detail, sesi, 'HIAS_ALTAR', 'Hias Altar (Wilayah)', bolehEdit);
+  }
+  html += '<div class="workspace-aksi">' + aksiWorkspace_(detail) + '</div>';
+  document.getElementById('panelWorkspace').innerHTML = html;
+  tampilkanStatusWorkspace_(detail, sesi);
+}
+
+function tampilkanDetailSesuaiMode_(detail) {
+  if (state.modePenjadwalan === 'INPUT') tampilkanWorkspaceJadwal_(detail);
+  else tampilkanDetailAkhirPekan(detail);
 }
 
 document.getElementById('btnBulanSebelumnya').addEventListener('click', function () {
@@ -836,7 +1228,9 @@ function pilihTanggalKalender(kunci) {
 
 function bukaModalBuatJadwal(tanggal) {
   if (state.peran !== 'ADMIN' && state.peran !== 'SCHEDULER') return;
-  var dasar = typeof tanggal === 'string' ? tanggalDariKunci_(tanggal) : awalHari_(tanggal || new Date());
+  var dasar;
+  if (typeof tanggal === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(tanggal)) dasar = tanggalDariKunci_(tanggal);
+  else dasar = awalHari_(tanggal ? new Date(tanggal) : new Date());
   document.getElementById('inputTanggalMinggu').value = kunciTanggal_(tanggalMingguDariTanggal_(dasar));
   document.getElementById('pesanModalBuatJadwal').innerHTML = '';
   bukaModal('modalBuatJadwal');
@@ -886,19 +1280,24 @@ document.getElementById('btnBukaAkhirPekan').addEventListener('click', function 
   jalankanDenganTombolSibuk_(e.target, 'Membuka...', function () {
     return panggilServer('api_ambilAtauBuatAkhirPekan', tglObj.toISOString(), sesiDipilih)
       .then(function (detail) {
-        tutupModal('modalBuatJadwal'); state.akhirPekanAktif = detail; tampilkanDetailAkhirPekan(detail); muatKalenderBulan();
+        tutupModal('modalBuatJadwal');
+        state.akhirPekanAktif = detail;
+        document.getElementById('inputTanggalWorkspace').value = formatTanggalUntukInput_(detail.tanggalAcuan);
+        tampilkanDetailSesuaiMode_(detail);
+        muatKalenderBulan();
       })
       .catch(function (e2) { tampilkanPesanModalBuat_(e2.message); });
   });
 });
 
 function bukaDetailAkhirPekan(weekendId) {
+  if (state.modePenjadwalan === 'INPUT') return bukaWorkspaceAkhirPekan_(weekendId);
   var kartu = document.getElementById('kartuDetailAkhirPekan');
   kartu.classList.remove('sembunyi');
   kartu.innerHTML = '<div class="memuat">Memuat detail jadwal...</div>';
   panggilServer('api_ambilDetailAkhirPekan', weekendId)
     .then(function (detail) {
-      state.akhirPekanAktif = detail; tampilkanDetailAkhirPekan(detail);
+      state.akhirPekanAktif = detail; tampilkanDetailSesuaiMode_(detail);
       kartu.scrollIntoView({ behavior: 'smooth', block: 'start' });
     })
     .catch(function (e) { tampilkanPesan('error', e.message); });
@@ -907,6 +1306,7 @@ function bukaDetailAkhirPekan(weekendId) {
 function tampilkanDetailAkhirPekan(detail) {
   var kartu = document.getElementById('kartuDetailAkhirPekan');
   kartu.classList.remove('sembunyi');
+  var bolehMengubah = bolehEditWorkspace_(detail);
 
   var kelasStatus = detail.status === 'DRAFT' ? 'draft' : (detail.status === 'COMPLETE' ? 'complete' : 'final');
   var labelStatus = { DRAFT: 'Draft', COMPLETE: 'Lengkap', FINAL: 'Final' }[detail.status];
@@ -914,6 +1314,8 @@ function tampilkanDetailAkhirPekan(detail) {
   var tombolAksi = '<button class="sekunder" onclick="cetakJadwal()">Cetak Jadwal</button> ';
   if (state.peran === 'ADMIN' || state.peran === 'SCHEDULER') {
     tombolAksi += '<button class="sekunder" onclick="eksporJadwalKeSheet()">Ekspor ke Sheet Jadwal</button> ';
+  }
+  if (bolehMengubah) {
     tombolAksi += '<button class="sekunder" onclick="bukaTambahSesiKhusus(\'' + detail.weekendId + '\')">+ Sesi Khusus</button> ';
   }
   if (state.peran === 'ADMIN') {
@@ -931,7 +1333,7 @@ function tampilkanDetailAkhirPekan(detail) {
 
   detail.sesiList.forEach(function (sesi) {
     var judulSesi = escapeHtml(sesi.labelSesi) + ' — ' + formatTanggal(sesi.tanggalSesi);
-    if (sesi.jenisSesi === 'KHUSUS' && (state.peran === 'ADMIN' || state.peran === 'SCHEDULER')) {
+    if (sesi.jenisSesi === 'KHUSUS' && bolehMengubah) {
       judulSesi += ' <button class="tautan" onclick="bukaUbahSesiKhusus(\'' + sesi.sessionId + '\',\'' + detail.weekendId + '\')" title="Ubah">ubah</button>' +
         ' <button class="tautan" onclick="hapusSesiKhusus(\'' + sesi.sessionId + '\',\'' + detail.weekendId + '\')" title="Hapus sesi ini">hapus sesi</button>';
     }
@@ -945,11 +1347,11 @@ function tampilkanDetailAkhirPekan(detail) {
         ' <span class="kecil">(' + (progresPeran ? progresPeran.terisi + '/' + progresPeran.dibutuhkan : '') + ')</span></span><span>';
       petugasDiPeranIni.forEach(function (a) {
         html += escapeHtml(a.namaOrang) + ' ';
-        if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+        if (bolehMengubah) {
           html += '<button class="tautan" onclick="hapusPenugasan(\'' + a.assignmentId + '\',\'' + detail.weekendId + '\')" title="Hapus">&times;</button> ';
         }
       });
-      if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+      if (bolehMengubah) {
         html += '<button class="tautan" onclick="bukaPilihKandidat(\'' + sesi.sessionId + '\',\'' + peran.roleId + '\',\'' + escapeHtml(peran.namaPeran) + '\',\'' + detail.weekendId + '\')">+ tambah</button>';
       }
       html += '</span></div>';
@@ -960,22 +1362,22 @@ function tampilkanDetailAkhirPekan(detail) {
     html += '<div class="baris-peran"><span>Paduan Suara</span><span>';
     sesi.penugasanKomunitas.filter(function (c) { return c.jenisPenugasan === 'CHOIR'; }).forEach(function (c) {
       html += escapeHtml(c.namaWilayah) + ' ';
-      if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+      if (bolehMengubah) {
         html += '<button class="tautan" onclick="hapusPenugasanKomunitas(\'' + c.communityAssignmentId + '\',\'' + detail.weekendId + '\')" title="Batalkan">&times;</button> ';
       }
     });
-    if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+    if (bolehMengubah) {
       html += '<button class="tautan" onclick="bukaPilihWilayahKomunitas(\'' + sesi.sessionId + '\',\'CHOIR\',\'Paduan Suara\',\'' + detail.weekendId + '\')">+ tambah</button>';
     }
     html += '</span></div>';
     html += '<div class="baris-peran"><span>Tatib</span><span>';
     sesi.penugasanKomunitas.filter(function (c) { return c.jenisPenugasan === 'TATIB'; }).forEach(function (c) {
       html += escapeHtml(c.namaLingkungan || c.namaWilayah) + ' ';
-      if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+      if (bolehMengubah) {
         html += '<button class="tautan" onclick="hapusPenugasanKomunitas(\'' + c.communityAssignmentId + '\',\'' + detail.weekendId + '\')" title="Batalkan">&times;</button> ';
       }
     });
-    if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+    if (bolehMengubah) {
       html += '<button class="tautan" onclick="bukaPilihLingkunganTatib(\'' + sesi.sessionId + '\',\'' + detail.weekendId + '\')">+ tambah</button>';
     }
     html += '</span></div>';
@@ -988,11 +1390,11 @@ function tampilkanDetailAkhirPekan(detail) {
   html += '<div class="kartu-sesi" style="margin-top:12px;"><h3>Hias Altar (berlaku sepanjang akhir pekan)</h3><div class="baris-peran"><span>Wilayah bertugas</span><span>';
   hiasAltar.forEach(function (c) {
     html += escapeHtml(c.namaWilayah) + ' ';
-    if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+    if (bolehMengubah) {
       html += '<button class="tautan" onclick="hapusPenugasanKomunitas(\'' + c.communityAssignmentId + '\',\'' + detail.weekendId + '\')" title="Batalkan">&times;</button> ';
     }
   });
-  if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+  if (bolehMengubah) {
     html += '<button class="tautan" onclick="bukaPilihWilayahKomunitas(\'\',\'HIAS_ALTAR\',\'Hias Altar\',\'' + detail.weekendId + '\')">+ tambah</button>';
   }
   html += '</span></div></div>';
@@ -1381,7 +1783,7 @@ function bukaTambahSesiKhusus(weekendId) {
   var tglInput = prompt('Tanggal sesi (YYYY-MM-DD):', formatTanggalUntukInput_(tanggalDefault));
   if (!tglInput) return;
   panggilServer('api_tambahSesiKhusus', weekendId, nama.trim(), new Date(tglInput + 'T00:00:00').toISOString())
-    .then(function (detailBaru) { state.akhirPekanAktif = detailBaru; tampilkanDetailAkhirPekan(detailBaru); tampilkanPesan('sukses', 'Sesi khusus ditambahkan.'); })
+    .then(function (detailBaru) { state.akhirPekanAktif = detailBaru; tampilkanDetailSesuaiMode_(detailBaru); tampilkanPesan('sukses', 'Sesi khusus ditambahkan.'); })
     .catch(function (e) { tampilkanPesan('error', e.message); });
 }
 function formatTanggalUntukInput_(t) {
