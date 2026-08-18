@@ -346,6 +346,8 @@
 var state = {
   pelakuId: '', peran: '', wilayahList: [], lingkunganList: [], peranList: [],
   kandidatList: [], // snapshot kandidat + role eligibility, dipakai modal tanpa request server
+  kandidatDimuat: false, kandidatSedangDimuat: null,
+  semuaOrangCache: null, dataWilayahLingkunganCache: null, dataPetugasSedangDimuat: null,
   bulanTampil: new Date(), akhirPekanAktif: null,
   aksiPeringatanTertunda: null // dipakai modal peringatan untuk menyimpan aksi yang mau dijalankan ulang
 };
@@ -413,7 +415,7 @@ document.getElementById('navigasi').addEventListener('click', function (e) {
   ['kalender', 'petugas', 'aturan', 'audit', 'pengguna'].forEach(function (t) {
     document.getElementById('tab' + kapital(t)).classList.toggle('sembunyi', t !== tab);
   });
-  if (tab === 'petugas') { muatDaftarOrang(); muatDaftarWilayahLingkungan(); }
+  if (tab === 'petugas') muatDataKelolaPetugas().catch(function () {});
   if (tab === 'aturan') muatDaftarAturan();
   if (tab === 'audit') muatDaftarAudit();
   if (tab === 'pengguna') muatDaftarPengguna();
@@ -424,10 +426,13 @@ function kapital(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 // MULAI APLIKASI
 // ====================================================================
 window.addEventListener('DOMContentLoaded', function () {
-  panggilServer('api_ambilDataAwal').then(function (data) {
+  var rentangAwal = parameterKalenderBulan_();
+  document.getElementById('labelBulan').textContent = rentangAwal.namaBulan;
+  document.getElementById('daftarKalender').innerHTML = '<div class="memuat">Memuat...</div>';
+
+  panggilServer('api_ambilDataAwal', rentangAwal.awal, rentangAwal.akhir).then(function (data) {
     state.pelakuId = data.pelakuId; state.peran = data.peran;
     state.wilayahList = data.wilayahList; state.lingkunganList = data.lingkunganList; state.peranList = data.peranList;
-    state.kandidatList = data.kandidatList || [];
 
     var labelPeran = { ADMIN: 'Admin', SCHEDULER: 'Penjadwal', VIEWER: 'Pelihat' }[data.peran] || data.peran;
     document.getElementById('infoPengguna').textContent = data.pelakuId + ' — ' + labelPeran;
@@ -438,7 +443,7 @@ window.addEventListener('DOMContentLoaded', function () {
       document.querySelector('button[data-tab="pengguna"]').classList.add('sembunyi');
     }
     isiPilihanWilayahLingkungan();
-    muatKalenderBulan();
+    tampilkanDaftarKalender_(data.akhirPekanList || []);
   }).catch(function (e) { tampilkanPesan('error', 'Gagal memuat data awal: ' + e.message); });
 });
 
@@ -462,27 +467,36 @@ document.getElementById('btnBulanBerikutnya').addEventListener('click', function
   state.bulanTampil.setMonth(state.bulanTampil.getMonth() + 1); muatKalenderBulan();
 });
 
-function muatKalenderBulan() {
+function parameterKalenderBulan_() {
   var tahun = state.bulanTampil.getFullYear(), bulan = state.bulanTampil.getMonth();
-  var namaBulan = state.bulanTampil.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-  document.getElementById('labelBulan').textContent = namaBulan;
+  return {
+    namaBulan: state.bulanTampil.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
+    awal: new Date(tahun, bulan, 1).toISOString(),
+    akhir: new Date(tahun, bulan + 1, 0).toISOString()
+  };
+}
 
-  var awal = new Date(tahun, bulan, 1).toISOString();
-  var akhir = new Date(tahun, bulan + 1, 0).toISOString();
+function tampilkanDaftarKalender_(daftar) {
+  var el = document.getElementById('daftarKalender');
+  if (daftar.length === 0) { el.innerHTML = '<p class="kecil">Belum ada akhir pekan dibuat untuk bulan ini.</p>'; return; }
+  el.innerHTML = daftar.map(function (w) {
+    var kelasStatus = w.status === 'DRAFT' ? 'draft' : (w.status === 'COMPLETE' ? 'complete' : 'final');
+    var labelStatus = { DRAFT: 'Draft', COMPLETE: 'Lengkap', FINAL: 'Final' }[w.status];
+    return '<div class="sel-kalender" onclick="bukaDetailAkhirPekan(\'' + w.weekendId + '\')">' +
+      '<strong>' + formatTanggal(w.tanggalAcuan) + '</strong><br>' +
+      '<span class="lencana ' + kelasStatus + '">' + labelStatus + '</span> ' +
+      '<span class="kecil">' + (w.semuaTerpenuhi ? 'Sudah lengkap' : 'Belum lengkap') + '</span></div>';
+  }).join('');
+}
+
+function muatKalenderBulan() {
+  var rentang = parameterKalenderBulan_();
+  document.getElementById('labelBulan').textContent = rentang.namaBulan;
 
   document.getElementById('daftarKalender').innerHTML = '<div class="memuat">Memuat...</div>';
-  panggilServer('api_ambilAkhirPekanDalamRentang', awal, akhir).then(function (daftar) {
-    var el = document.getElementById('daftarKalender');
-    if (daftar.length === 0) { el.innerHTML = '<p class="kecil">Belum ada akhir pekan dibuat untuk bulan ini.</p>'; return; }
-    el.innerHTML = daftar.map(function (w) {
-      var kelasStatus = w.status === 'DRAFT' ? 'draft' : (w.status === 'COMPLETE' ? 'complete' : 'final');
-      var labelStatus = { DRAFT: 'Draft', COMPLETE: 'Lengkap', FINAL: 'Final' }[w.status];
-      return '<div class="sel-kalender" onclick="bukaDetailAkhirPekan(\'' + w.weekendId + '\')">' +
-        '<strong>' + formatTanggal(w.tanggalAcuan) + '</strong><br>' +
-        '<span class="lencana ' + kelasStatus + '">' + labelStatus + '</span> ' +
-        '<span class="kecil">' + (w.semuaTerpenuhi ? 'Sudah lengkap' : 'Belum lengkap') + '</span></div>';
-    }).join('');
-  }).catch(function (e) { tampilkanPesan('error', e.message); });
+  panggilServer('api_ambilAkhirPekanDalamRentang', rentang.awal, rentang.akhir)
+    .then(tampilkanDaftarKalender_)
+    .catch(function (e) { tampilkanPesan('error', e.message); });
 }
 
 document.getElementById('btnBukaAkhirPekan').addEventListener('click', function (e) {
@@ -698,10 +712,11 @@ function bukaPilihKandidat(sessionId, roleId, namaPeran, weekendId) {
   document.getElementById('cariKandidatModal').value = '';
   state.konteksPilihKandidat = { sessionId: sessionId, roleId: roleId, weekendId: weekendId };
 
-  // Tidak ada google.script.run di sini. Kandidat sudah dimuat sekali
-  // saat aplikasi dibuka dan sekarang difilter langsung di browser.
-  muatDaftarKandidatModal('');
+  document.getElementById('daftarKandidatModal').innerHTML = '<div class="memuat">Memuat kandidat...</div>';
   bukaModal('modalKandidat');
+  pastikanCacheKandidat_()
+    .then(function () { muatDaftarKandidatModal(''); })
+    .catch(function (e) { document.getElementById('daftarKandidatModal').innerHTML = '<div class="pesan-error">' + escapeHtml(e.message) + '</div>'; });
 }
 
 document.getElementById('cariKandidatModal').addEventListener('input', function (e) {
@@ -741,10 +756,18 @@ function muatDaftarKandidatModal(kataKunci) {
  * berubah. Penjadwalan biasa tidak memanggil server untuk membuka modal.
  */
 function muatUlangCacheKandidat() {
-  return panggilServer('api_ambilSemuaKandidat').then(function (daftar) {
+  if (state.kandidatSedangDimuat) return state.kandidatSedangDimuat;
+  state.kandidatSedangDimuat = panggilServer('api_ambilSemuaKandidat').then(function (daftar) {
     state.kandidatList = daftar || [];
+    state.kandidatDimuat = true;
     return state.kandidatList;
-  });
+  }).finally(function () { state.kandidatSedangDimuat = null; });
+  return state.kandidatSedangDimuat;
+}
+
+function pastikanCacheKandidat_() {
+  if (state.kandidatDimuat) return Promise.resolve(state.kandidatList);
+  return muatUlangCacheKandidat();
 }
 
 function pilihKandidat(personId, elemenTombol) {
@@ -935,30 +958,74 @@ document.getElementById('btnTambahOrang').addEventListener('click', function () 
   panggilServer('api_buatOrang', { nama: nama, lingkungan_id: lingkunganId }).then(function () {
     document.getElementById('inputNamaOrangBaru').value = '';
     tampilkanPesan('sukses', 'Petugas "' + nama + '" ditambahkan.');
-    muatUlangCacheKandidat();
     muatDaftarOrang();
   }).catch(function (e) { tampilkanPesan('error', e.message); });
 });
 
-document.getElementById('cariOrang').addEventListener('input', muatDaftarOrang);
-document.getElementById('tampilkanTidakAktif').addEventListener('change', muatDaftarOrang);
+// Pencarian dan filter status murni memakai cache browser. Tidak ada lagi
+// satu panggilan server (dan lima pembacaan sheet) untuk setiap keystroke.
+document.getElementById('cariOrang').addEventListener('input', tampilkanDaftarOrangDariCache_);
+document.getElementById('tampilkanTidakAktif').addEventListener('change', tampilkanDaftarOrangDariCache_);
+
+function tampilkanDaftarWilayahLingkungan_(data) {
+  var el = document.getElementById('daftarWilayahLingkungan');
+  var html = '';
+  data.wilayah.forEach(function (w) {
+    if (!w.aktif) return;
+    html += '<div class="baris-peran"><span><strong>' + escapeHtml(w.nama) + '</strong></span>' +
+      (state.peran === 'ADMIN' ? '<button class="tautan" onclick="nonaktifkanWilayah(\'' + w.wilayah_id + '\')">nonaktifkan</button>' : '') + '</div>';
+    data.lingkungan.filter(function (l) { return l.wilayah_id === w.wilayah_id && l.aktif; }).forEach(function (l) {
+      html += '<div class="baris-peran" style="padding-left:16px;"><span class="kecil">' + escapeHtml(l.nama) + '</span>' +
+        (state.peran === 'ADMIN' ? '<button class="tautan" onclick="nonaktifkanLingkungan(\'' + l.lingkungan_id + '\')">nonaktifkan</button>' : '') + '</div>';
+    });
+  });
+  el.innerHTML = html || '<p class="kecil">Belum ada Wilayah.</p>';
+}
+
+function sinkronkanKandidatDariOrang_() {
+  if (!state.kandidatDimuat || !state.semuaOrangCache) return;
+  var kandidatLama = {};
+  state.kandidatList.forEach(function (k) { kandidatLama[k.personId] = k; });
+  state.kandidatList = state.semuaOrangCache.map(function (p) {
+    var lama = kandidatLama[p.personId];
+    return {
+      personId: p.personId, nama: p.nama, aktif: p.aktif,
+      roleIds: p.peranDimiliki.map(function (r) { return r.roleId; }),
+      terakhirBertugas: lama ? lama.terakhirBertugas : null
+    };
+  });
+}
+
+function muatDataKelolaPetugas(paksaMuatUlang) {
+  if (state.dataPetugasSedangDimuat) return state.dataPetugasSedangDimuat;
+  if (!paksaMuatUlang && state.semuaOrangCache && state.dataWilayahLingkunganCache) {
+    tampilkanDaftarWilayahLingkungan_(state.dataWilayahLingkunganCache);
+    tampilkanDaftarOrangDariCache_();
+    return Promise.resolve({ orang: state.semuaOrangCache });
+  }
+  document.getElementById('daftarOrang').innerHTML = '<div class="memuat">Memuat...</div>';
+  document.getElementById('daftarWilayahLingkungan').innerHTML = '<div class="memuat">Memuat...</div>';
+
+  state.dataPetugasSedangDimuat = panggilServer('api_ambilDataKelolaPetugas').then(function (data) {
+    state.semuaOrangCache = data.orang || [];
+    state.dataWilayahLingkunganCache = { wilayah: data.wilayah || [], lingkungan: data.lingkungan || [] };
+    state.wilayahList = state.dataWilayahLingkunganCache.wilayah;
+    state.lingkunganList = state.dataWilayahLingkunganCache.lingkungan;
+    isiPilihanWilayahLingkungan();
+    sinkronkanKandidatDariOrang_();
+    tampilkanDaftarWilayahLingkungan_(state.dataWilayahLingkunganCache);
+    tampilkanDaftarOrangDariCache_();
+    return data;
+  }).catch(function (e) {
+    tampilkanPesan('error', e.message);
+    throw e;
+  }).finally(function () { state.dataPetugasSedangDimuat = null; });
+
+  return state.dataPetugasSedangDimuat;
+}
 
 function muatDaftarWilayahLingkungan() {
-  var el = document.getElementById('daftarWilayahLingkungan');
-  el.innerHTML = '<div class="memuat">Memuat...</div>';
-  panggilServer('api_daftarWilayahLingkungan').then(function (data) {
-    var html = '';
-    data.wilayah.forEach(function (w) {
-      if (!w.aktif) return;
-      html += '<div class="baris-peran"><span><strong>' + escapeHtml(w.nama) + '</strong></span>' +
-        (state.peran === 'ADMIN' ? '<button class="tautan" onclick="nonaktifkanWilayah(\'' + w.wilayah_id + '\')">nonaktifkan</button>' : '') + '</div>';
-      data.lingkungan.filter(function (l) { return l.wilayah_id === w.wilayah_id && l.aktif; }).forEach(function (l) {
-        html += '<div class="baris-peran" style="padding-left:16px;"><span class="kecil">' + escapeHtml(l.nama) + '</span>' +
-          (state.peran === 'ADMIN' ? '<button class="tautan" onclick="nonaktifkanLingkungan(\'' + l.lingkungan_id + '\')">nonaktifkan</button>' : '') + '</div>';
-      });
-    });
-    el.innerHTML = html || '<p class="kecil">Belum ada Wilayah.</p>';
-  }).catch(function (e) { tampilkanPesan('error', e.message); });
+  return muatDataKelolaPetugas(true).catch(function () { return null; });
 }
 
 function nonaktifkanWilayah(wilayahId) {
@@ -977,34 +1044,36 @@ function nonaktifkanLingkungan(lingkunganId) {
   }).catch(function (e) { tampilkanPesan('error', e.message); });
 }
 
-function muatDaftarOrang() {
-  document.getElementById('daftarOrang').innerHTML = '<div class="memuat">Memuat...</div>';
+function tampilkanDaftarOrangDariCache_() {
+  if (!state.semuaOrangCache) return;
   var sertakanTidakAktif = document.getElementById('tampilkanTidakAktif').checked;
-  return panggilServer('api_daftarOrang', sertakanTidakAktif).then(function (daftar) {
-    state.semuaOrangCache = daftar; // dipakai modal Kelola Peran, supaya tidak perlu panggil server lagi
-    var kataKunci = document.getElementById('cariOrang').value.toLowerCase();
-    var terfilter = daftar.filter(function (p) { return p.nama.toLowerCase().indexOf(kataKunci) !== -1; });
-    var html = '<table><tr><th>Nama</th><th>Lingkungan</th><th>Wilayah</th><th>Peran</th><th>Status</th><th></th></tr>';
-    terfilter.forEach(function (p) {
-      html += '<tr><td>' + escapeHtml(p.nama) + '</td><td>' + escapeHtml(p.namaLingkungan) + '</td><td>' + escapeHtml(p.namaWilayah) + '</td><td>';
-      html += p.peranDimiliki.map(function (r) { return escapeHtml(r.namaPeran); }).join(', ') || '<span class="kecil">belum ada</span>';
-      html += '</td><td>' + (p.aktif ? '<span class="lencana terpenuhi">Aktif</span>' : '<span class="lencana belum">Nonaktif</span>') + '</td><td>';
-      if (state.peran === 'ADMIN') {
-        html += '<button class="tautan" onclick="bukaKelolaPeranOrang(\'' + p.personId + '\')">kelola peran</button> ';
-        if (p.aktif) html += '<button class="tautan" onclick="nonaktifkanOrang(\'' + p.personId + '\')">nonaktifkan</button>';
-      }
-      html += '</td></tr>';
-    });
-    html += '</table>';
-    document.getElementById('daftarOrang').innerHTML = html;
-  }).catch(function (e) { tampilkanPesan('error', e.message); });
+  var kataKunci = document.getElementById('cariOrang').value.toLowerCase();
+  var terfilter = state.semuaOrangCache.filter(function (p) {
+    return (sertakanTidakAktif || p.aktif) && p.nama.toLowerCase().indexOf(kataKunci) !== -1;
+  });
+  var html = '<table><tr><th>Nama</th><th>Lingkungan</th><th>Wilayah</th><th>Peran</th><th>Status</th><th></th></tr>';
+  terfilter.forEach(function (p) {
+    html += '<tr><td>' + escapeHtml(p.nama) + '</td><td>' + escapeHtml(p.namaLingkungan) + '</td><td>' + escapeHtml(p.namaWilayah) + '</td><td>';
+    html += p.peranDimiliki.map(function (r) { return escapeHtml(r.namaPeran); }).join(', ') || '<span class="kecil">belum ada</span>';
+    html += '</td><td>' + (p.aktif ? '<span class="lencana terpenuhi">Aktif</span>' : '<span class="lencana belum">Nonaktif</span>') + '</td><td>';
+    if (state.peran === 'ADMIN') {
+      html += '<button class="tautan" onclick="bukaKelolaPeranOrang(\'' + p.personId + '\')">kelola peran</button> ';
+      if (p.aktif) html += '<button class="tautan" onclick="nonaktifkanOrang(\'' + p.personId + '\')">nonaktifkan</button>';
+    }
+    html += '</td></tr>';
+  });
+  html += '</table>';
+  document.getElementById('daftarOrang').innerHTML = html;
+}
+
+function muatDaftarOrang() {
+  return muatDataKelolaPetugas(true).catch(function () { return null; });
 }
 
 function nonaktifkanOrang(personId) {
   if (!confirm('Nonaktifkan petugas ini? Riwayat penugasan lama tidak akan hilang.')) return;
   panggilServer('api_nonaktifkanOrang', personId).then(function () {
     tampilkanPesan('sukses', 'Petugas dinonaktifkan.');
-    muatUlangCacheKandidat();
     muatDaftarOrang();
   }).catch(function (e) { tampilkanPesan('error', e.message); });
 }
@@ -1045,7 +1114,7 @@ function berikanPeranOrang(personId, roleId, elemenTombol) {
   jalankanDenganTombolSibuk_(elemenTombol, 'Memproses...', function () {
     return panggilServer('api_berikanPeran', personId, roleId).then(function () {
       tampilkanPesan('sukses', 'Peran diberikan.');
-      return Promise.all([muatDaftarOrang(), muatUlangCacheKandidat()]).then(function () {
+      return muatDataKelolaPetugas(true).then(function () {
         bukaKelolaPeranOrang(personId);
       });
     });
@@ -1057,7 +1126,7 @@ function cabutPeranOrang(personRoleId, elemenTombol) {
     return panggilServer('api_cabutPeran', personRoleId).then(function () {
       tampilkanPesan('sukses', 'Peran dicabut.');
       var personId = state.personIdSedangDikelola;
-      return Promise.all([muatDaftarOrang(), muatUlangCacheKandidat()]).then(function () {
+      return muatDataKelolaPetugas(true).then(function () {
         bukaKelolaPeranOrang(personId);
       });
     });
@@ -1105,7 +1174,7 @@ function muatDaftarAudit() {
       html += '<td>' + escapeHtml(a.aksi) + '</td><td>' + escapeHtml(a.jenis_entitas) + '</td><td>' + escapeHtml(a.alasan_override || '-') + '</td></tr>';
     });
     html += '</table>';
-    if (daftar.length > 200) html += '<p class="kecil">Menampilkan 200 catatan terbaru dari ' + daftar.length + ' total.</p>';
+    if (daftar.length === 200) html += '<p class="kecil">Menampilkan maksimal 200 catatan terbaru.</p>';
     document.getElementById('daftarAudit').innerHTML = html;
   }).catch(function (e) { tampilkanPesan('error', e.message); });
 }
