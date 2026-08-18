@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<title>Penjadwalan Petugas Liturgi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,500&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ====================================================================
+     TOKEN DESAIN — terinspirasi dunia liturgi: kertas misa, kayu mimbar,
+     hijau masa biasa (warna liturgi paling sering dipakai sepanjang
+     tahun), emas lilin altar, dan marun anggur/liturgi merah untuk
+     peringatan. Sengaja bukan kombinasi krem+terracotta yang generik.
+     ==================================================================== */
+  :root {
+    --kertas: #F5EEDD;        /* latar halaman -- kertas misa tua */
+    --kertas-kartu: #FCF8EE;  /* latar kartu -- sedikit lebih terang dari halaman */
+    --kayu: #3A2A1D;          /* judul & teks utama -- kayu mimbar tua */
+    --tinta: #4A3B2E;         /* teks isi -- coklat tinta, lebih lembut dari hitam */
+    --hijau: #4F6B49;         /* aksen utama -- hijau liturgi masa biasa */
+    --hijau-tua: #3B5236;     /* hover/tekan untuk aksen hijau */
+    --emas: #B07E2E;          /* aksen kedua -- kuningan lilin altar */
+    --emas-terang: #D9A94A;
+    --marun: #8A3A34;         /* peringatan/hapus -- liturgi merah/anggur */
+    --marun-muda: #F3E3E0;
+    --garis: #E2D3B3;         /* garis batas hangat, bukan abu dingin */
+    --garis-lembut: #EEE3CB;
+    --abu-hangat: #8A7A65;    /* teks sekunder/keterangan */
+    --bayang: 0 2px 10px rgba(58, 42, 29, 0.08);
+    --bayang-modal: 0 12px 40px rgba(58, 42, 29, 0.28);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: "Source Sans 3", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    margin: 0; background: var(--kertas); color: var(--tinta);
+    font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { font-family: "Lora", Georgia, serif; color: var(--kayu); font-weight: 600; }
+
+  /* --- Masthead --- */
+  header {
+    background: var(--kayu); color: var(--kertas-kartu);
+    padding: 18px 20px 14px; display: flex; justify-content: space-between; align-items: flex-end;
+    flex-wrap: wrap; gap: 8px; position: relative;
+  }
+  header::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
+    background: linear-gradient(90deg, var(--emas) 0%, var(--emas-terang) 50%, var(--emas) 100%);
+  }
+  header h1 { font-size: 20px; margin: 0; font-weight: 700; color: #FBF3E0; letter-spacing: 0.01em; }
+  header .info-pengguna { font-size: 12.5px; color: #D8C9A8; }
+
+  /* --- Navigasi: garis-bawah, bukan tombol berisi -- gaya rubrik buletin --- */
+  nav {
+    display: flex; background: #EFE4C8; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    border-bottom: 1px solid var(--garis); scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  nav button {
+    background: none; border: none; color: var(--abu-hangat); white-space: nowrap;
+    padding: 13px 16px 11px; cursor: pointer; font-size: 13.5px; font-weight: 600;
+    font-family: "Source Sans 3", sans-serif; border-bottom: 3px solid transparent;
+    display: flex; align-items: center; gap: 6px;
+  }
+  nav button::before { font-size: 15px; opacity: 0.85; }
+  nav button[data-tab="kalender"]::before { content: "\1F4C6"; }
+  nav button[data-tab="petugas"]::before { content: "\1F56F"; }
+  nav button[data-tab="aturan"]::before { content: "\2696"; }
+  nav button[data-tab="audit"]::before { content: "\1F4DC"; }
+  nav button[data-tab="pengguna"]::before { content: "\1F511"; }
+  nav button.aktif { color: var(--hijau); border-bottom-color: var(--hijau); }
+  nav button:hover { background: transparent; color: var(--hijau-tua); }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 18px; padding-bottom: 48px; }
+
+  /* --- Kartu --- */
+  .kartu {
+    background: var(--kertas-kartu); border: 1px solid var(--garis-lembut); border-radius: 12px;
+    padding: 18px; margin-bottom: 16px; box-shadow: var(--bayang);
+  }
+  .kartu h2 { font-size: 16.5px; margin: 0 0 4px; }
+  .kartu > p.kecil:first-of-type { margin-top: 0; }
+
+  .baris { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .baris > * { margin: 0; }
+
+  /* --- Form --- */
+  input, select, textarea {
+    font-family: inherit; font-size: 14.5px; padding: 9px 11px; border: 1px solid var(--garis);
+    border-radius: 8px; background: #fff; color: var(--tinta);
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--emas-terang); outline-offset: 1px; border-color: var(--emas); }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--hijau); width: 16px; height: 16px; }
+  input[type="date"] { color-scheme: light; }
+  label { font-size: 14px; color: var(--tinta); }
+
+  /* --- Tombol --- */
+  button {
+    font-family: "Source Sans 3", sans-serif; font-size: 14px; font-weight: 600;
+    padding: 9px 15px; border-radius: 8px; border: none; cursor: pointer;
+    background: var(--hijau); color: #fff; min-height: 40px; transition: background 0.15s ease;
+  }
+  button:hover { background: var(--hijau-tua); }
+  button.sekunder { background: transparent; color: var(--kayu); border: 1.5px solid var(--garis); }
+  button.sekunder:hover { border-color: var(--hijau); color: var(--hijau-tua); background: rgba(79,107,73,0.06); }
+  button.bahaya { background: var(--marun); }
+  button.bahaya:hover { background: #6E2C27; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .tautan {
+    color: var(--emas); cursor: pointer; text-decoration: none; background: none; border: none;
+    padding: 0; font-size: inherit; font-weight: 600; min-height: auto;
+  }
+  .tautan:hover { text-decoration: underline; color: var(--marun); background: none; }
+
+  /* --- Tabel --- */
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--garis-lembut); }
+  th { color: var(--abu-hangat); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+
+  /* --- Lencana status: warna bermakna liturgis --- */
+  .lencana { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; }
+  .lencana.draft { background: #F1E2BE; color: #7A5A16; }       /* lilin belum menyala */
+  .lencana.complete { background: #E4D9F5; color: #4B3A78; }
+  .lencana.final { background: #DCE7D6; color: var(--hijau-tua); }  /* mantap seperti masa liturgi berjalan */
+  .lencana.terpenuhi { background: #DCE7D6; color: var(--hijau-tua); }
+  .lencana.belum { background: var(--marun-muda); color: var(--marun); }
+
+  /* --- Pesan --- */
+  .pesan-error, .pesan-peringatan, .pesan-sukses {
+    padding: 11px 14px; border-radius: 9px; font-size: 13.5px; margin-bottom: 12px; border: 1px solid transparent;
+  }
+  .pesan-error { background: var(--marun-muda); border-color: #DEBAB5; color: var(--marun); }
+  .pesan-peringatan { background: #F6EBCF; border-color: #E0C382; color: #7A5A16; }
+  .pesan-sukses { background: #E4EEE0; border-color: #C3D9BA; color: var(--hijau-tua); }
+
+  /* --- Sesi / peran --- */
+  .grid-sesi { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .kartu-sesi { border: 1px solid var(--garis-lembut); border-radius: 10px; padding: 14px; background: #fff; }
+  .kartu-sesi h3 { font-size: 14.5px; margin: 0 0 10px; padding-bottom: 8px; border-bottom: 2px solid var(--garis-lembut); }
+  .baris-peran { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--garis-lembut); font-size: 13.5px; gap: 8px; }
+  .baris-peran:last-child { border-bottom: none; }
+  .baris-peran button, td button { padding: 6px 12px; font-size: 13px; min-height: 32px; }
+  .kecil { font-size: 12px; color: var(--abu-hangat); }
+
+  /* --- Kalender: sel berbentuk jendela lengkung -- elemen ciri khas --- */
+  .kalender-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .sel-kalender {
+    border: 1.5px solid var(--garis); background: #fff; padding: 14px 12px 12px; cursor: pointer;
+    border-radius: 40px 40px 10px 10px; text-align: center; transition: border-color 0.15s ease, transform 0.1s ease;
+  }
+  .sel-kalender:hover { border-color: var(--hijau); transform: translateY(-1px); }
+  .sel-kalender strong { display: block; font-family: "Lora", serif; color: var(--kayu); margin-bottom: 6px; font-size: 14px; }
+
+  /* --- Modal --- */
+  .modal-latar { display: none; position: fixed; inset: 0; background: rgba(58,42,29,0.45); align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+  .modal-latar.tampil { display: flex; }
+  .modal-kotak { background: var(--kertas-kartu); border-radius: 14px; padding: 20px; width: 100%; max-width: 420px; max-height: 85vh; overflow-y: auto; box-shadow: var(--bayang-modal); }
+  .modal-kotak h2 { font-size: 16px; }
+
+  .memuat { text-align: center; color: var(--abu-hangat); padding: 24px; font-size: 13px; }
+  .memuat::before { content: "\2726  "; }
+  .sembunyi { display: none !important; }
+
+  @media (max-width: 600px) {
+    main { padding: 14px; }
+    .kartu { padding: 14px; border-radius: 10px; }
+    header h1 { font-size: 17px; }
+    button { padding: 10px 14px; }
+    .nav-bulan { flex-wrap: nowrap; justify-content: space-between; }
+    .nav-bulan button { padding: 9px 10px; font-size: 13px; }
+    .teks-nav-bulan { display: none; }
+  }
+
+  @media print {
+    header, nav, #pesanGlobal, main { display: none !important; }
+    body { background: white; }
+    #areaCetak { display: block !important; }
+    table.cetak-jadwal { width: 100%; border-collapse: collapse; }
+    table.cetak-jadwal th, table.cetak-jadwal td { border: 1px solid #999; padding: 4px 6px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Penjadwalan Petugas Liturgi</h1>
+  <div class="info-pengguna" id="infoPengguna">Memuat...</div>
+</header>
+
+<nav id="navigasi">
+  <button data-tab="kalender" class="aktif">Kalender</button>
+  <button data-tab="petugas">Kelola Petugas</button>
+  <button data-tab="aturan">Pengaturan Aturan</button>
+  <button data-tab="audit">Riwayat Audit</button>
+  <button data-tab="pengguna">Pengguna</button>
+</nav>
+
+<main>
+  <div id="pesanGlobal"></div>
+
+  <!-- ===================== TAB KALENDER ===================== -->
+  <section id="tabKalender">
+    <div class="kartu">
+      <h2>Pilih atau Buat Akhir Pekan</h2>
+      <p class="kecil">Masukkan tanggal Minggu (tanggal acuan akhir pekan), lalu centang sesi mana saja yang ada minggu itu. Tidak semua minggu punya 3 sesi -- centang sesuai kebutuhan. Sesi tidak baku (misa khusus) bisa ditambah setelah akhir pekan dibuka.</p>
+      <div class="baris">
+        <label>Tanggal Minggu: <input type="date" id="inputTanggalMinggu"></label>
+      </div>
+      <div class="baris" style="margin-top:8px;">
+        <label><input type="checkbox" id="centangSabtuSore" checked> Sabtu Sore</label>
+        <label><input type="checkbox" id="centangMingguPagi" checked> Minggu Pagi</label>
+        <label><input type="checkbox" id="centangMingguSore" checked> Minggu Sore</label>
+      </div>
+      <div class="baris" style="margin-top:8px;">
+        <button id="btnBukaAkhirPekan">Buka / Buat Akhir Pekan</button>
+      </div>
+    </div>
+
+    <div class="kartu">
+      <h2>Akhir Pekan Bulan Ini</h2>
+      <div class="baris nav-bulan" style="margin-bottom:10px;">
+        <button class="sekunder" id="btnBulanSebelumnya">&laquo; <span class="teks-nav-bulan">Bulan </span>Sebelumnya</button>
+        <strong id="labelBulan"></strong>
+        <button class="sekunder" id="btnBulanBerikutnya"><span class="teks-nav-bulan">Bulan </span>Berikutnya &raquo;</button>
+      </div>
+      <div id="daftarKalender" class="kalender-grid"><div class="memuat">Memuat...</div></div>
+    </div>
+
+    <div class="kartu sembunyi" id="kartuDetailAkhirPekan"></div>
+  </section>
+
+  <!-- ===================== TAB KELOLA PETUGAS ===================== -->
+  <section id="tabPetugas" class="sembunyi">
+    <div class="kartu">
+      <h2>Tambah Wilayah / Lingkungan</h2>
+      <div class="baris">
+        <input type="text" id="inputNamaWilayahBaru" placeholder="Nama Wilayah baru">
+        <button id="btnTambahWilayah">Tambah Wilayah</button>
+      </div>
+      <div class="baris" style="margin-top:8px;">
+        <input type="text" id="inputNamaLingkunganBaru" placeholder="Nama Lingkungan baru">
+        <select id="pilihWilayahUntukLingkungan"></select>
+        <button id="btnTambahLingkungan">Tambah Lingkungan</button>
+      </div>
+    </div>
+
+    <div class="kartu">
+      <h2>Kelola Wilayah / Lingkungan</h2>
+      <p class="kecil">Menonaktifkan tidak menghapus riwayat penugasan lama -- hanya membuatnya tidak muncul lagi di pilihan baru.</p>
+      <div id="daftarWilayahLingkungan"><div class="memuat">Memuat...</div></div>
+    </div>
+
+    <div class="kartu">
+      <h2>Tambah Petugas Baru</h2>
+      <div class="baris">
+        <input type="text" id="inputNamaOrangBaru" placeholder="Nama lengkap">
+        <select id="pilihLingkunganUntukOrang"></select>
+        <button id="btnTambahOrang">Tambah Petugas</button>
+      </div>
+    </div>
+
+    <div class="kartu">
+      <h2>Daftar Petugas</h2>
+      <div class="baris" style="margin-bottom:10px;">
+        <input type="text" id="cariOrang" placeholder="Cari nama...">
+        <label><input type="checkbox" id="tampilkanTidakAktif"> Tampilkan yang tidak aktif</label>
+      </div>
+      <div id="daftarOrang"><div class="memuat">Memuat...</div></div>
+    </div>
+  </section>
+
+  <!-- ===================== TAB ATURAN ===================== -->
+  <section id="tabAturan" class="sembunyi">
+    <div class="kartu">
+      <h2>Pengaturan Aturan (Khusus Admin)</h2>
+      <p class="kecil">Aturan bertingkat <strong>WAJIB</strong> (menjaga keutuhan data) tidak bisa dimatikan.</p>
+      <div id="daftarAturan"><div class="memuat">Memuat...</div></div>
+    </div>
+  </section>
+
+  <!-- ===================== TAB AUDIT ===================== -->
+  <section id="tabAudit" class="sembunyi">
+    <div class="kartu">
+      <h2>Riwayat Audit (Khusus Admin)</h2>
+      <div id="daftarAudit"><div class="memuat">Memuat...</div></div>
+    </div>
+  </section>
+
+  <!-- ===================== TAB PENGGUNA ===================== -->
+  <section id="tabPengguna" class="sembunyi">
+    <div class="kartu">
+      <h2>Atur Peran Pengguna (Khusus Admin)</h2>
+      <p class="kecil">Peran menentukan hak akses: <strong>ADMIN</strong> (semua akses), <strong>SCHEDULER</strong>/Penjadwal (menyusun jadwal Draft), <strong>VIEWER</strong>/Pelihat (hanya melihat).</p>
+      <div class="baris">
+        <input type="email" id="inputEmailPengguna" placeholder="Alamat email Google pengguna">
+        <select id="pilihPeranPengguna">
+          <option value="ADMIN">Admin</option>
+          <option value="SCHEDULER">Penjadwal (Scheduler)</option>
+          <option value="VIEWER">Pelihat (Viewer)</option>
+        </select>
+        <button id="btnAturPeran">Simpan Peran</button>
+      </div>
+      <div id="daftarPengguna" style="margin-top:14px;"><div class="memuat">Memuat...</div></div>
+    </div>
+  </section>
+</main>
+
+<!-- ===================== AREA CETAK (hanya tampil saat mode cetak) ===================== -->
+<div id="areaCetak" class="sembunyi"></div>
+
+<!-- ===================== MODAL: PILIH KANDIDAT ===================== -->
+<div class="modal-latar" id="modalKandidat">
+  <div class="modal-kotak">
+    <h2 id="judulModalKandidat" style="font-size:15px;">Pilih Petugas</h2>
+    <input type="text" id="cariKandidatModal" placeholder="Cari nama..." style="width:100%; margin-bottom:10px;">
+    <div id="daftarKandidatModal" style="max-height:300px; overflow-y:auto;"></div>
+    <div class="baris" style="margin-top:12px; justify-content:flex-end;">
+      <button class="sekunder" onclick="tutupModal('modalKandidat')">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: KONFIRMASI PERINGATAN ===================== -->
+<div class="modal-latar" id="modalPeringatan">
+  <div class="modal-kotak">
+    <h2 style="font-size:15px; color:#92400e;">Ada Peringatan</h2>
+    <div id="isiPeringatanModal"></div>
+    <div style="margin-top:10px;">
+      <label style="font-size:13px;">Alasan override (wajib diisi untuk penugasan komunitas):</label>
+      <textarea id="alasanOverrideModal" style="width:100%; margin-top:4px;" rows="2"></textarea>
+    </div>
+    <div class="baris" style="margin-top:12px; justify-content:flex-end;">
+      <button class="sekunder" onclick="tutupModal('modalPeringatan')">Batal</button>
+      <button id="btnLanjutkanMeskiPeringatan">Lanjutkan Meski Ada Peringatan</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====================================================================
+// STATE APLIKASI (disimpan di memori browser, bukan browser storage)
+// ====================================================================
+var state = {
+  pelakuId: '', peran: '', wilayahList: [], lingkunganList: [], peranList: [],
+  kandidatList: [], // snapshot kandidat + role eligibility, dipakai modal tanpa request server
+  bulanTampil: new Date(), akhirPekanAktif: null,
+  aksiPeringatanTertunda: null // dipakai modal peringatan untuk menyimpan aksi yang mau dijalankan ulang
+};
+
+// ====================================================================
+// PEMBANTU UMUM
+// ====================================================================
+function tampilkanPesan(jenis, teks) {
+  var kelas = jenis === 'error' ? 'pesan-error' : (jenis === 'peringatan' ? 'pesan-peringatan' : 'pesan-sukses');
+  document.getElementById('pesanGlobal').innerHTML = '<div class="' + kelas + '">' + escapeHtml(teks) + '</div>';
+  window.scrollTo(0, 0);
+  setTimeout(function () { document.getElementById('pesanGlobal').innerHTML = ''; }, 6000);
+}
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function formatTanggal(t) {
+  if (!t) return '-';
+  var d = new Date(t);
+  if (isNaN(d.getTime())) return String(t);
+  return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function tutupModal(id) { document.getElementById(id).classList.remove('tampil'); }
+function bukaModal(id) { document.getElementById(id).classList.add('tampil'); }
+
+/** Membungkus google.script.run jadi Promise supaya lebih mudah dipakai. */
+function panggilServer(namaFungsi) {
+  var argumen = Array.prototype.slice.call(arguments, 1);
+  return new Promise(function (resolve, reject) {
+    google.script.run
+      .withSuccessHandler(function (hasil) {
+        if (!hasil.ok) { reject(new Error(hasil.pesan || 'Terjadi kesalahan.')); return; }
+        resolve(hasil.data);
+      })
+      .withFailureHandler(function (err) { reject(new Error(err.message || String(err))); })
+      [namaFungsi].apply(null, argumen);
+  });
+}
+
+/**
+ * Memberi tanda LANGSUNG saat tombol diklik (nonaktif + teks berubah
+ * jadi "Memproses...") supaya tidak terasa seperti tidak merespon
+ * selagi menunggu server. Teks/status tombol otomatis kembali normal
+ * begitu selesai (berhasil maupun gagal).
+ */
+function jalankanDenganTombolSibuk_(elemenTombol, teksSementara, fnPromise) {
+  var teksAsli = elemenTombol ? elemenTombol.textContent : null;
+  if (elemenTombol) { elemenTombol.disabled = true; elemenTombol.textContent = teksSementara; }
+  return fnPromise().finally(function () {
+    if (elemenTombol) { elemenTombol.disabled = false; elemenTombol.textContent = teksAsli; }
+  });
+}
+
+// ====================================================================
+// NAVIGASI TAB
+// ====================================================================
+document.getElementById('navigasi').addEventListener('click', function (e) {
+  if (e.target.tagName !== 'BUTTON') return;
+  var tab = e.target.getAttribute('data-tab');
+  document.querySelectorAll('#navigasi button').forEach(function (b) { b.classList.remove('aktif'); });
+  e.target.classList.add('aktif');
+  ['kalender', 'petugas', 'aturan', 'audit', 'pengguna'].forEach(function (t) {
+    document.getElementById('tab' + kapital(t)).classList.toggle('sembunyi', t !== tab);
+  });
+  if (tab === 'petugas') { muatDaftarOrang(); muatDaftarWilayahLingkungan(); }
+  if (tab === 'aturan') muatDaftarAturan();
+  if (tab === 'audit') muatDaftarAudit();
+  if (tab === 'pengguna') muatDaftarPengguna();
+});
+function kapital(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+// ====================================================================
+// MULAI APLIKASI
+// ====================================================================
+window.addEventListener('DOMContentLoaded', function () {
+  panggilServer('api_ambilDataAwal').then(function (data) {
+    state.pelakuId = data.pelakuId; state.peran = data.peran;
+    state.wilayahList = data.wilayahList; state.lingkunganList = data.lingkunganList; state.peranList = data.peranList;
+    state.kandidatList = data.kandidatList || [];
+
+    var labelPeran = { ADMIN: 'Admin', SCHEDULER: 'Penjadwal', VIEWER: 'Pelihat' }[data.peran] || data.peran;
+    document.getElementById('infoPengguna').textContent = data.pelakuId + ' — ' + labelPeran;
+
+    if (data.peran !== 'ADMIN') {
+      document.querySelector('button[data-tab="aturan"]').classList.add('sembunyi');
+      document.querySelector('button[data-tab="audit"]').classList.add('sembunyi');
+      document.querySelector('button[data-tab="pengguna"]').classList.add('sembunyi');
+    }
+    isiPilihanWilayahLingkungan();
+    muatKalenderBulan();
+  }).catch(function (e) { tampilkanPesan('error', 'Gagal memuat data awal: ' + e.message); });
+});
+
+function isiPilihanWilayahLingkungan() {
+  var pilihWilayah = document.getElementById('pilihWilayahUntukLingkungan');
+  pilihWilayah.innerHTML = state.wilayahList.filter(function (w) { return w.aktif; })
+    .map(function (w) { return '<option value="' + w.wilayah_id + '">' + escapeHtml(w.nama) + '</option>'; }).join('');
+
+  var pilihLingkungan = document.getElementById('pilihLingkunganUntukOrang');
+  pilihLingkungan.innerHTML = state.lingkunganList.filter(function (l) { return l.aktif; })
+    .map(function (l) { return '<option value="' + l.lingkungan_id + '">' + escapeHtml(l.nama) + '</option>'; }).join('');
+}
+
+// ====================================================================
+// TAB KALENDER
+// ====================================================================
+document.getElementById('btnBulanSebelumnya').addEventListener('click', function () {
+  state.bulanTampil.setMonth(state.bulanTampil.getMonth() - 1); muatKalenderBulan();
+});
+document.getElementById('btnBulanBerikutnya').addEventListener('click', function () {
+  state.bulanTampil.setMonth(state.bulanTampil.getMonth() + 1); muatKalenderBulan();
+});
+
+function muatKalenderBulan() {
+  var tahun = state.bulanTampil.getFullYear(), bulan = state.bulanTampil.getMonth();
+  var namaBulan = state.bulanTampil.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  document.getElementById('labelBulan').textContent = namaBulan;
+
+  var awal = new Date(tahun, bulan, 1).toISOString();
+  var akhir = new Date(tahun, bulan + 1, 0).toISOString();
+
+  document.getElementById('daftarKalender').innerHTML = '<div class="memuat">Memuat...</div>';
+  panggilServer('api_ambilAkhirPekanDalamRentang', awal, akhir).then(function (daftar) {
+    var el = document.getElementById('daftarKalender');
+    if (daftar.length === 0) { el.innerHTML = '<p class="kecil">Belum ada akhir pekan dibuat untuk bulan ini.</p>'; return; }
+    el.innerHTML = daftar.map(function (w) {
+      var kelasStatus = w.status === 'DRAFT' ? 'draft' : (w.status === 'COMPLETE' ? 'complete' : 'final');
+      var labelStatus = { DRAFT: 'Draft', COMPLETE: 'Lengkap', FINAL: 'Final' }[w.status];
+      return '<div class="sel-kalender" onclick="bukaDetailAkhirPekan(\'' + w.weekendId + '\')">' +
+        '<strong>' + formatTanggal(w.tanggalAcuan) + '</strong><br>' +
+        '<span class="lencana ' + kelasStatus + '">' + labelStatus + '</span> ' +
+        '<span class="kecil">' + (w.semuaTerpenuhi ? 'Sudah lengkap' : 'Belum lengkap') + '</span></div>';
+    }).join('');
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+document.getElementById('btnBukaAkhirPekan').addEventListener('click', function (e) {
+  var tgl = document.getElementById('inputTanggalMinggu').value;
+  if (!tgl) { tampilkanPesan('error', 'Pilih tanggal Minggu dulu.'); return; }
+  var tglObj = new Date(tgl + 'T00:00:00');
+  var sabtu = new Date(tglObj); sabtu.setDate(sabtu.getDate() - 1);
+
+  var sesiDipilih = [];
+  if (document.getElementById('centangSabtuSore').checked) sesiDipilih.push({ jenisSesi: 'SABTU_SORE', tanggalSesi: sabtu.toISOString() });
+  if (document.getElementById('centangMingguPagi').checked) sesiDipilih.push({ jenisSesi: 'MINGGU_PAGI', tanggalSesi: tglObj.toISOString() });
+  if (document.getElementById('centangMingguSore').checked) sesiDipilih.push({ jenisSesi: 'MINGGU_SORE', tanggalSesi: tglObj.toISOString() });
+  if (sesiDipilih.length === 0) { tampilkanPesan('error', 'Centang minimal satu sesi.'); return; }
+
+  jalankanDenganTombolSibuk_(e.target, 'Membuka...', function () {
+    return panggilServer('api_ambilAtauBuatAkhirPekan', tglObj.toISOString(), sesiDipilih)
+      .then(function (detail) { state.akhirPekanAktif = detail; tampilkanDetailAkhirPekan(detail); muatKalenderBulan(); })
+      .catch(function (e2) { tampilkanPesan('error', e2.message); });
+  });
+});
+
+function bukaDetailAkhirPekan(weekendId) {
+  panggilServer('api_ambilDetailAkhirPekan', weekendId)
+    .then(function (detail) { state.akhirPekanAktif = detail; tampilkanDetailAkhirPekan(detail); })
+    .catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+function tampilkanDetailAkhirPekan(detail) {
+  var kartu = document.getElementById('kartuDetailAkhirPekan');
+  kartu.classList.remove('sembunyi');
+
+  var kelasStatus = detail.status === 'DRAFT' ? 'draft' : (detail.status === 'COMPLETE' ? 'complete' : 'final');
+  var labelStatus = { DRAFT: 'Draft', COMPLETE: 'Lengkap', FINAL: 'Final' }[detail.status];
+
+  var tombolAksi = '<button class="sekunder" onclick="cetakJadwal()">Cetak Jadwal</button> ';
+  if (state.peran === 'ADMIN' || state.peran === 'SCHEDULER') {
+    tombolAksi += '<button class="sekunder" onclick="eksporJadwalKeSheet()">Ekspor ke Sheet Jadwal</button> ';
+    tombolAksi += '<button class="sekunder" onclick="bukaTambahSesiKhusus(\'' + detail.weekendId + '\')">+ Sesi Khusus</button> ';
+  }
+  if (state.peran === 'ADMIN') {
+    if (detail.status !== 'FINAL') {
+      tombolAksi += '<button onclick="finalkanAkhirPekan()">Finalkan Akhir Pekan</button>';
+    } else {
+      tombolAksi += '<button class="bahaya" onclick="bukaKembaliAkhirPekan()">Buka Kembali (Batalkan Final)</button>';
+    }
+  }
+
+  var html = '<h2>Akhir Pekan ' + formatTanggal(detail.tanggalAcuan) +
+    ' <span class="lencana ' + kelasStatus + '">' + labelStatus + '</span></h2>' +
+    '<div class="baris" style="margin-bottom:14px;">' + tombolAksi + '</div>' +
+    '<div class="grid-sesi">';
+
+  detail.sesiList.forEach(function (sesi) {
+    var judulSesi = escapeHtml(sesi.labelSesi) + ' — ' + formatTanggal(sesi.tanggalSesi);
+    if (sesi.jenisSesi === 'KHUSUS' && (state.peran === 'ADMIN' || state.peran === 'SCHEDULER')) {
+      judulSesi += ' <button class="tautan" onclick="bukaUbahSesiKhusus(\'' + sesi.sessionId + '\',\'' + detail.weekendId + '\')" title="Ubah">ubah</button>' +
+        ' <button class="tautan" onclick="hapusSesiKhusus(\'' + sesi.sessionId + '\',\'' + detail.weekendId + '\')" title="Hapus sesi ini">hapus sesi</button>';
+    }
+    html += '<div class="kartu-sesi"><h3>' + judulSesi + '</h3>';
+
+    // Peran individu
+    detail.peranList.forEach(function (peran) {
+      var progresPeran = sesi.progres.filter(function (p) { return p.roleId === peran.roleId; })[0];
+      var petugasDiPeranIni = sesi.penugasanIndividu.filter(function (a) { return a.roleId === peran.roleId; });
+      html += '<div class="baris-peran"><span>' + escapeHtml(peran.namaPeran) +
+        ' <span class="kecil">(' + (progresPeran ? progresPeran.terisi + '/' + progresPeran.dibutuhkan : '') + ')</span></span><span>';
+      petugasDiPeranIni.forEach(function (a) {
+        html += escapeHtml(a.namaOrang) + ' ';
+        if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+          html += '<button class="tautan" onclick="hapusPenugasan(\'' + a.assignmentId + '\',\'' + detail.weekendId + '\')" title="Hapus">&times;</button> ';
+        }
+      });
+      if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+        html += '<button class="tautan" onclick="bukaPilihKandidat(\'' + sesi.sessionId + '\',\'' + peran.roleId + '\',\'' + escapeHtml(peran.namaPeran) + '\',\'' + detail.weekendId + '\')">+ tambah</button>';
+      }
+      html += '</span></div>';
+    });
+
+    // Penugasan komunitas untuk sesi ini
+    html += '<div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">';
+    html += '<div class="baris-peran"><span>Paduan Suara</span><span>';
+    sesi.penugasanKomunitas.filter(function (c) { return c.jenisPenugasan === 'CHOIR'; }).forEach(function (c) {
+      html += escapeHtml(c.namaWilayah) + ' ';
+      if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+        html += '<button class="tautan" onclick="hapusPenugasanKomunitas(\'' + c.communityAssignmentId + '\',\'' + detail.weekendId + '\')" title="Batalkan">&times;</button> ';
+      }
+    });
+    if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+      html += '<button class="tautan" onclick="bukaPilihWilayahKomunitas(\'' + sesi.sessionId + '\',\'CHOIR\',\'Paduan Suara\',\'' + detail.weekendId + '\')">+ tambah</button>';
+    }
+    html += '</span></div>';
+    html += '<div class="baris-peran"><span>Tatib</span><span>';
+    sesi.penugasanKomunitas.filter(function (c) { return c.jenisPenugasan === 'TATIB'; }).forEach(function (c) {
+      html += escapeHtml(c.namaLingkungan || c.namaWilayah) + ' ';
+      if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+        html += '<button class="tautan" onclick="hapusPenugasanKomunitas(\'' + c.communityAssignmentId + '\',\'' + detail.weekendId + '\')" title="Batalkan">&times;</button> ';
+      }
+    });
+    if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+      html += '<button class="tautan" onclick="bukaPilihLingkunganTatib(\'' + sesi.sessionId + '\',\'' + detail.weekendId + '\')">+ tambah</button>';
+    }
+    html += '</span></div>';
+    html += '</div></div>';
+  });
+  html += '</div>';
+
+  // Hias Altar (tingkat akhir pekan, tampil sekali)
+  var hiasAltar = (detail.sesiList[0] ? detail.sesiList[0].penugasanKomunitas.filter(function (c) { return c.jenisPenugasan === 'HIAS_ALTAR'; }) : []);
+  html += '<div class="kartu-sesi" style="margin-top:12px;"><h3>Hias Altar (berlaku sepanjang akhir pekan)</h3><div class="baris-peran"><span>Wilayah bertugas</span><span>';
+  hiasAltar.forEach(function (c) {
+    html += escapeHtml(c.namaWilayah) + ' ';
+    if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+      html += '<button class="tautan" onclick="hapusPenugasanKomunitas(\'' + c.communityAssignmentId + '\',\'' + detail.weekendId + '\')" title="Batalkan">&times;</button> ';
+    }
+  });
+  if (detail.status !== 'FINAL' || state.peran === 'ADMIN') {
+    html += '<button class="tautan" onclick="bukaPilihWilayahKomunitas(\'\',\'HIAS_ALTAR\',\'Hias Altar\',\'' + detail.weekendId + '\')">+ tambah</button>';
+  }
+  html += '</span></div></div>';
+
+  kartu.innerHTML = html;
+}
+
+function finalkanAkhirPekan() {
+  var d = state.akhirPekanAktif;
+  panggilServer('api_finalkanAkhirPekan', { weekendId: d.weekendId, revisiYangDiharapkan: d.revisi })
+    .then(function (hasil) { prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(d.weekendId); muatKalenderBulan(); }); })
+    .catch(function (e) { tampilkanPesan('error', e.message); });
+}
+function bukaKembaliAkhirPekan() {
+  var d = state.akhirPekanAktif;
+  panggilServer('api_bukaKembaliAkhirPekan', { weekendId: d.weekendId, revisiYangDiharapkan: d.revisi })
+    .then(function (hasil) { prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(d.weekendId); muatKalenderBulan(); }); })
+    .catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+function hapusPenugasan(assignmentId, weekendId) {
+  var d = state.akhirPekanAktif;
+  panggilServer('api_hapusPenugasanIndividu', { assignmentId: assignmentId, weekendId: weekendId, revisiYangDiharapkan: d.revisi })
+    .then(function (hasil) { prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(weekendId); }); })
+    .catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+function hapusPenugasanKomunitas(communityAssignmentId, weekendId) {
+  if (!confirm('Batalkan penugasan ini?')) return;
+  var d = state.akhirPekanAktif;
+  panggilServer('api_hapusPenugasanKomunitas', { communityAssignmentId: communityAssignmentId, weekendId: weekendId, revisiYangDiharapkan: d.revisi })
+    .then(function (hasil) { prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(weekendId); }); })
+    .catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+function hapusSesiKhusus(sessionId, weekendId) {
+  if (!confirm('Hapus sesi khusus ini? Hanya bisa dihapus kalau belum ada penugasan sama sekali di dalamnya.')) return;
+  var d = state.akhirPekanAktif;
+  panggilServer('api_hapusSesiKhusus', { sessionId: sessionId, weekendId: weekendId, revisiYangDiharapkan: d.revisi })
+    .then(function (hasil) { prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(weekendId); }); })
+    .catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+function bukaUbahSesiKhusus(sessionId, weekendId) {
+  var d = state.akhirPekanAktif;
+  var sesi = d.sesiList.filter(function (s) { return s.sessionId === sessionId; })[0];
+  if (!sesi) return;
+  var namaBaru = prompt('Nama sesi khusus:', sesi.labelSesi);
+  if (namaBaru === null) return;
+  var tglBaru = prompt('Tanggal sesi (YYYY-MM-DD):', formatTanggalUntukInput_(sesi.tanggalSesi));
+  if (tglBaru === null) return;
+  panggilServer('api_perbaruiSesiKhusus', { sessionId: sessionId, weekendId: weekendId, namaKhusus: namaBaru.trim(), tanggalSesi: new Date(tglBaru + 'T00:00:00').toISOString() })
+    .then(function (hasil) {
+      if (!hasil.berhasil) { tampilkanPesan('error', hasil.pesan || 'Gagal mengubah sesi.'); return; }
+      tampilkanPesan('sukses', 'Sesi khusus diperbarui.');
+      bukaDetailAkhirPekan(weekendId);
+    })
+    .catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+/**
+ * Menangani hasil transaksi yang seragam dari server: berhasil,
+ * diblokir, revisi kedaluwarsa, atau butuh konfirmasi peringatan.
+ */
+function prosesHasilTransaksi(hasil, kalauBerhasil) {
+  if (hasil.berhasil) { tampilkanPesan('sukses', 'Berhasil disimpan.'); kalauBerhasil(); return; }
+
+  if (hasil.alasan === 'REVISI_KEDALUWARSA') {
+    tampilkanPesan('error', 'Data ini sudah diubah oleh orang lain sejak Anda membukanya. Memuat ulang data terbaru...');
+    if (state.akhirPekanAktif) bukaDetailAkhirPekan(state.akhirPekanAktif.weekendId);
+    return;
+  }
+  if (hasil.alasan === 'DIBLOKIR') {
+    tampilkanPesan('error', 'Tidak bisa disimpan: ' + hasil.blokir.map(function (b) { return b.pesan; }).join(' | '));
+    return;
+  }
+  if (hasil.alasan === 'PERINGATAN') {
+    document.getElementById('isiPeringatanModal').innerHTML = hasil.peringatan.map(function (p) {
+      return '<div class="pesan-peringatan">' + escapeHtml(p.pesan) + '</div>';
+    }).join('');
+    bukaModal('modalPeringatan');
+    return;
+  }
+  if (hasil.alasan === 'ALASAN_OVERRIDE_WAJIB') {
+    tampilkanPesan('peringatan', 'Mohon isi alasan override sebelum melanjutkan.');
+    return;
+  }
+  if (hasil.alasan === 'DITOLAK') { tampilkanPesan('error', hasil.pesan || 'Akses ditolak.'); return; }
+  if (hasil.alasan === 'ORANG_TIDAK_AKTIF') { tampilkanPesan('error', 'Orang ini sudah tidak aktif, tidak bisa ditugaskan.'); return; }
+  tampilkanPesan('error', 'Gagal menyimpan (' + hasil.alasan + ').');
+}
+
+// --- Modal pilih kandidat individu ---
+function bukaPilihKandidat(sessionId, roleId, namaPeran, weekendId) {
+  document.getElementById('judulModalKandidat').textContent = 'Pilih ' + namaPeran;
+  document.getElementById('cariKandidatModal').classList.remove('sembunyi');
+  document.getElementById('cariKandidatModal').value = '';
+  state.konteksPilihKandidat = { sessionId: sessionId, roleId: roleId, weekendId: weekendId };
+
+  // Tidak ada google.script.run di sini. Kandidat sudah dimuat sekali
+  // saat aplikasi dibuka dan sekarang difilter langsung di browser.
+  muatDaftarKandidatModal('');
+  bukaModal('modalKandidat');
+}
+
+document.getElementById('cariKandidatModal').addEventListener('input', function (e) {
+  muatDaftarKandidatModal(e.target.value);
+});
+
+function muatDaftarKandidatModal(kataKunci) {
+  var ctx = state.konteksPilihKandidat;
+  var el = document.getElementById('daftarKandidatModal');
+  var q = (kataKunci || '').toString().trim().toLowerCase();
+
+  var daftar = (state.kandidatList || []).filter(function (p) {
+    if (!p.aktif) return false;
+    if (!p.roleIds || p.roleIds.indexOf(ctx.roleId) === -1) return false;
+    if (q && (!p.nama || p.nama.toLowerCase().indexOf(q) === -1)) return false;
+    return true;
+  });
+
+  daftar.sort(function (a, b) {
+    return (a.nama || '').localeCompare(b.nama || '', 'id');
+  });
+
+  if (daftar.length === 0) {
+    el.innerHTML = '<p class="kecil">Tidak ada kandidat yang cocok/layak untuk peran ini.</p>';
+    return;
+  }
+
+  el.innerHTML = daftar.map(function (p) {
+    return '<div class="baris-peran"><span>' + escapeHtml(p.nama) +
+      '<br><span class="kecil">Terakhir bertugas: ' + (p.terakhirBertugas ? formatTanggal(p.terakhirBertugas) : 'belum pernah') + '</span></span>' +
+      '<button onclick="pilihKandidat(\'' + p.personId + '\', this)">Pilih</button></div>';
+  }).join('');
+}
+
+/**
+ * Master kandidat hanya perlu dimuat ulang kalau People/Person_Roles
+ * berubah. Penjadwalan biasa tidak memanggil server untuk membuka modal.
+ */
+function muatUlangCacheKandidat() {
+  return panggilServer('api_ambilSemuaKandidat').then(function (daftar) {
+    state.kandidatList = daftar || [];
+    return state.kandidatList;
+  });
+}
+
+function pilihKandidat(personId, elemenTombol) {
+  var ctx = state.konteksPilihKandidat;
+  var d = state.akhirPekanAktif;
+  var jalankan = function (konfirmasiPeringatan, alasanOverride) {
+    return panggilServer('api_tugaskanIndividu', {
+      weekendId: ctx.weekendId, sessionId: ctx.sessionId, personId: personId, roleId: ctx.roleId,
+      revisiYangDiharapkan: d.revisi, konfirmasiPeringatan: konfirmasiPeringatan, alasanOverride: alasanOverride
+    });
+  };
+  state.aksiPeringatanTertunda = jalankan;
+  // Nonaktifkan SEMUA tombol "Pilih" di modal ini begitu salah satu diklik,
+  // supaya tidak bisa terklik dobel selagi menunggu, dan langsung kelihatan
+  // sedang diproses (bukan diam).
+  var semuaTombolPilih = document.querySelectorAll('#daftarKandidatModal button');
+  semuaTombolPilih.forEach(function (b) { b.disabled = true; });
+  if (elemenTombol) elemenTombol.textContent = 'Memproses...';
+
+  jalankan(false, '').then(function (hasil) {
+    tutupModal('modalKandidat');
+    prosesHasilTransaksi(hasil, function () {
+      var kandidat = (state.kandidatList || []).filter(function (p) { return p.personId === personId; })[0];
+      if (kandidat) kandidat.terakhirBertugas = new Date().toISOString();
+      bukaDetailAkhirPekan(ctx.weekendId);
+    });
+  }).catch(function (e) {
+    tampilkanPesan('error', e.message);
+    semuaTombolPilih.forEach(function (b) { b.disabled = false; });
+    if (elemenTombol) elemenTombol.textContent = 'Pilih';
+  });
+}
+
+// --- Modal pilih Wilayah untuk penugasan komunitas ---
+function bukaPilihWilayahKomunitas(sessionId, jenis, label, weekendId) {
+  document.getElementById('judulModalKandidat').textContent = 'Pilih Wilayah untuk ' + label;
+  document.getElementById('cariKandidatModal').value = '';
+  var el = document.getElementById('daftarKandidatModal');
+  el.innerHTML = state.wilayahList.filter(function (w) { return w.aktif; }).map(function (w) {
+    return '<div class="baris-peran"><span>' + escapeHtml(w.nama) + '</span>' +
+      '<button onclick="pilihWilayahKomunitas(\'' + w.wilayah_id + '\',\'' + sessionId + '\',\'' + jenis + '\',\'' + weekendId + '\')">Pilih</button></div>';
+  }).join('');
+  bukaModal('modalKandidat');
+}
+
+function pilihWilayahKomunitas(wilayahId, sessionId, jenis, weekendId) {
+  var d = state.akhirPekanAktif;
+  var jalankan = function (konfirmasiPeringatan, alasanOverride) {
+    return panggilServer('api_tugaskanKomunitas', {
+      weekendId: weekendId, sessionId: sessionId, jenisPenugasan: jenis, wilayahId: wilayahId,
+      revisiYangDiharapkan: d.revisi, konfirmasiPeringatan: konfirmasiPeringatan, alasanOverride: alasanOverride
+    });
+  };
+  state.aksiPeringatanTertunda = jalankan;
+  jalankan(false, '').then(function (hasil) {
+    tutupModal('modalKandidat');
+    prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(weekendId); });
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+document.getElementById('btnLanjutkanMeskiPeringatan').addEventListener('click', function () {
+  var alasan = document.getElementById('alasanOverrideModal').value;
+  if (state.aksiPeringatanTertunda) {
+    state.aksiPeringatanTertunda(true, alasan).then(function (hasil) {
+      tutupModal('modalPeringatan');
+      prosesHasilTransaksi(hasil, function () { if (state.akhirPekanAktif) bukaDetailAkhirPekan(state.akhirPekanAktif.weekendId); });
+    }).catch(function (e) { tampilkanPesan('error', e.message); });
+  }
+});
+
+// --- Modal pilih Lingkungan untuk Tatib ---
+function bukaPilihLingkunganTatib(sessionId, weekendId) {
+  document.getElementById('judulModalKandidat').textContent = 'Pilih Lingkungan untuk Tatib';
+  document.getElementById('cariKandidatModal').value = '';
+  var el = document.getElementById('daftarKandidatModal');
+  el.innerHTML = state.lingkunganList.filter(function (l) { return l.aktif; }).map(function (l) {
+    var wilayah = state.wilayahList.filter(function (w) { return w.wilayah_id === l.wilayah_id; })[0];
+    return '<div class="baris-peran"><span>' + escapeHtml(l.nama) + ' <span class="kecil">(' + (wilayah ? escapeHtml(wilayah.nama) : '') + ')</span></span>' +
+      '<button onclick="pilihLingkunganTatib(\'' + l.lingkungan_id + '\',\'' + l.wilayah_id + '\',\'' + sessionId + '\',\'' + weekendId + '\')">Pilih</button></div>';
+  }).join('');
+  bukaModal('modalKandidat');
+}
+
+function pilihLingkunganTatib(lingkunganId, wilayahId, sessionId, weekendId) {
+  var d = state.akhirPekanAktif;
+  var jalankan = function (konfirmasiPeringatan, alasanOverride) {
+    return panggilServer('api_tugaskanKomunitas', {
+      weekendId: weekendId, sessionId: sessionId, jenisPenugasan: 'TATIB', wilayahId: wilayahId, lingkunganId: lingkunganId,
+      revisiYangDiharapkan: d.revisi, konfirmasiPeringatan: konfirmasiPeringatan, alasanOverride: alasanOverride
+    });
+  };
+  state.aksiPeringatanTertunda = jalankan;
+  jalankan(false, '').then(function (hasil) {
+    tutupModal('modalKandidat');
+    prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(weekendId); });
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+// --- Cetak Jadwal (langsung dari browser, tidak perlu simpan apapun) ---
+function cetakJadwal() {
+  var detail = state.akhirPekanAktif;
+  if (!detail) return;
+  var baris = [];
+  detail.sesiList.forEach(function (sesi) {
+    var namaKoor = sesi.penugasanKomunitas.filter(function (c) { return c.jenisPenugasan === 'CHOIR'; }).map(function (c) { return c.namaWilayah; }).join(', ');
+    var namaHiasAltar = sesi.penugasanKomunitas.filter(function (c) { return c.jenisPenugasan === 'HIAS_ALTAR'; }).map(function (c) { return c.namaWilayah; }).join(', ');
+    var namaTatib = sesi.penugasanKomunitas.filter(function (c) { return c.jenisPenugasan === 'TATIB'; }).map(function (c) { return c.namaLingkungan; }).join(', ');
+    if (sesi.penugasanIndividu.length === 0) {
+      baris.push([formatTanggal(sesi.tanggalSesi), sesi.labelSesi, namaKoor, namaHiasAltar, namaTatib, '', '', '']);
+    } else {
+      sesi.penugasanIndividu.forEach(function (a) {
+        baris.push([formatTanggal(sesi.tanggalSesi), sesi.labelSesi, namaKoor, namaHiasAltar, namaTatib, a.namaPeran, a.namaOrang, a.namaWilayahOrang || '']);
+      });
+    }
+  });
+
+  var html = '<table class="cetak-jadwal"><tr><th>Tanggal</th><th>Misa</th><th>Koor</th><th>Hias Altar</th><th>Tatib</th><th>Tugas</th><th>Petugas</th><th>Asal Wilayah</th></tr>';
+  baris.forEach(function (b) { html += '<tr>' + b.map(function (v) { return '<td>' + escapeHtml(v) + '</td>'; }).join('') + '</tr>'; });
+  html += '</table>';
+
+  var jendela = document.getElementById('areaCetak');
+  jendela.innerHTML = '<h2>Jadwal Akhir Pekan ' + formatTanggal(detail.tanggalAcuan) + '</h2>' + html;
+  jendela.classList.remove('sembunyi');
+  window.print();
+}
+window.addEventListener('afterprint', function () {
+  document.getElementById('areaCetak').classList.add('sembunyi');
+});
+
+// --- Ekspor ke sheet "Jadwal" (format persis file Excel lama, untuk arsip) ---
+function eksporJadwalKeSheet() {
+  var detail = state.akhirPekanAktif;
+  if (!detail) return;
+  panggilServer('api_eksporJadwalKeSheet', detail.weekendId).then(function (hasil) {
+    tampilkanPesan('sukses', 'Berhasil diekspor ke sheet "Jadwal" (' + hasil.jumlahBaris + ' baris).');
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+/** Menambah misa tidak baku (misalnya "Misa Paskah") ke akhir pekan yang sedang dibuka. */
+function bukaTambahSesiKhusus(weekendId) {
+  var nama = prompt('Nama sesi khusus (contoh: Misa Paskah, Misa Kenaikan):');
+  if (!nama || !nama.trim()) return;
+  var d = state.akhirPekanAktif;
+  var tanggalDefault = d ? d.tanggalAcuan : new Date().toISOString();
+  var tglInput = prompt('Tanggal sesi (YYYY-MM-DD):', formatTanggalUntukInput_(tanggalDefault));
+  if (!tglInput) return;
+  panggilServer('api_tambahSesiKhusus', weekendId, nama.trim(), new Date(tglInput + 'T00:00:00').toISOString())
+    .then(function (detailBaru) { state.akhirPekanAktif = detailBaru; tampilkanDetailAkhirPekan(detailBaru); tampilkanPesan('sukses', 'Sesi khusus ditambahkan.'); })
+    .catch(function (e) { tampilkanPesan('error', e.message); });
+}
+function formatTanggalUntukInput_(t) {
+  var d = new Date(t);
+  var bulan = ('0' + (d.getMonth() + 1)).slice(-2);
+  var tgl = ('0' + d.getDate()).slice(-2);
+  return d.getFullYear() + '-' + bulan + '-' + tgl;
+}
+
+// ====================================================================
+// TAB KELOLA PETUGAS
+// ====================================================================
+document.getElementById('btnTambahWilayah').addEventListener('click', function () {
+  var nama = document.getElementById('inputNamaWilayahBaru').value.trim();
+  if (!nama) return;
+  panggilServer('api_buatWilayah', { nama: nama }).then(function (w) {
+    state.wilayahList.push(w); isiPilihanWilayahLingkungan();
+    document.getElementById('inputNamaWilayahBaru').value = '';
+    tampilkanPesan('sukses', 'Wilayah "' + nama + '" ditambahkan.');
+    muatDaftarWilayahLingkungan();
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+});
+
+document.getElementById('btnTambahLingkungan').addEventListener('click', function () {
+  var nama = document.getElementById('inputNamaLingkunganBaru').value.trim();
+  var wilayahId = document.getElementById('pilihWilayahUntukLingkungan').value;
+  if (!nama || !wilayahId) return;
+  panggilServer('api_buatLingkungan', { nama: nama, wilayah_id: wilayahId }).then(function (l) {
+    state.lingkunganList.push(l); isiPilihanWilayahLingkungan();
+    document.getElementById('inputNamaLingkunganBaru').value = '';
+    tampilkanPesan('sukses', 'Lingkungan "' + nama + '" ditambahkan.');
+    muatDaftarWilayahLingkungan();
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+});
+
+document.getElementById('btnTambahOrang').addEventListener('click', function () {
+  var nama = document.getElementById('inputNamaOrangBaru').value.trim();
+  var lingkunganId = document.getElementById('pilihLingkunganUntukOrang').value;
+  if (!nama || !lingkunganId) { tampilkanPesan('error', 'Nama dan Lingkungan wajib diisi.'); return; }
+  panggilServer('api_buatOrang', { nama: nama, lingkungan_id: lingkunganId }).then(function () {
+    document.getElementById('inputNamaOrangBaru').value = '';
+    tampilkanPesan('sukses', 'Petugas "' + nama + '" ditambahkan.');
+    muatUlangCacheKandidat();
+    muatDaftarOrang();
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+});
+
+document.getElementById('cariOrang').addEventListener('input', muatDaftarOrang);
+document.getElementById('tampilkanTidakAktif').addEventListener('change', muatDaftarOrang);
+
+function muatDaftarWilayahLingkungan() {
+  var el = document.getElementById('daftarWilayahLingkungan');
+  el.innerHTML = '<div class="memuat">Memuat...</div>';
+  panggilServer('api_daftarWilayahLingkungan').then(function (data) {
+    var html = '';
+    data.wilayah.forEach(function (w) {
+      if (!w.aktif) return;
+      html += '<div class="baris-peran"><span><strong>' + escapeHtml(w.nama) + '</strong></span>' +
+        (state.peran === 'ADMIN' ? '<button class="tautan" onclick="nonaktifkanWilayah(\'' + w.wilayah_id + '\')">nonaktifkan</button>' : '') + '</div>';
+      data.lingkungan.filter(function (l) { return l.wilayah_id === w.wilayah_id && l.aktif; }).forEach(function (l) {
+        html += '<div class="baris-peran" style="padding-left:16px;"><span class="kecil">' + escapeHtml(l.nama) + '</span>' +
+          (state.peran === 'ADMIN' ? '<button class="tautan" onclick="nonaktifkanLingkungan(\'' + l.lingkungan_id + '\')">nonaktifkan</button>' : '') + '</div>';
+      });
+    });
+    el.innerHTML = html || '<p class="kecil">Belum ada Wilayah.</p>';
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+function nonaktifkanWilayah(wilayahId) {
+  if (!confirm('Nonaktifkan Wilayah ini? Lingkungan di dalamnya sebaiknya dinonaktifkan juga secara terpisah.')) return;
+  panggilServer('api_nonaktifkanWilayah', wilayahId).then(function () {
+    tampilkanPesan('sukses', 'Wilayah dinonaktifkan.');
+    muatDaftarWilayahLingkungan();
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+function nonaktifkanLingkungan(lingkunganId) {
+  if (!confirm('Nonaktifkan Lingkungan ini?')) return;
+  panggilServer('api_nonaktifkanLingkungan', lingkunganId).then(function () {
+    tampilkanPesan('sukses', 'Lingkungan dinonaktifkan.');
+    muatDaftarWilayahLingkungan();
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+function muatDaftarOrang() {
+  document.getElementById('daftarOrang').innerHTML = '<div class="memuat">Memuat...</div>';
+  var sertakanTidakAktif = document.getElementById('tampilkanTidakAktif').checked;
+  return panggilServer('api_daftarOrang', sertakanTidakAktif).then(function (daftar) {
+    state.semuaOrangCache = daftar; // dipakai modal Kelola Peran, supaya tidak perlu panggil server lagi
+    var kataKunci = document.getElementById('cariOrang').value.toLowerCase();
+    var terfilter = daftar.filter(function (p) { return p.nama.toLowerCase().indexOf(kataKunci) !== -1; });
+    var html = '<table><tr><th>Nama</th><th>Lingkungan</th><th>Wilayah</th><th>Peran</th><th>Status</th><th></th></tr>';
+    terfilter.forEach(function (p) {
+      html += '<tr><td>' + escapeHtml(p.nama) + '</td><td>' + escapeHtml(p.namaLingkungan) + '</td><td>' + escapeHtml(p.namaWilayah) + '</td><td>';
+      html += p.peranDimiliki.map(function (r) { return escapeHtml(r.namaPeran); }).join(', ') || '<span class="kecil">belum ada</span>';
+      html += '</td><td>' + (p.aktif ? '<span class="lencana terpenuhi">Aktif</span>' : '<span class="lencana belum">Nonaktif</span>') + '</td><td>';
+      if (state.peran === 'ADMIN') {
+        html += '<button class="tautan" onclick="bukaKelolaPeranOrang(\'' + p.personId + '\')">kelola peran</button> ';
+        if (p.aktif) html += '<button class="tautan" onclick="nonaktifkanOrang(\'' + p.personId + '\')">nonaktifkan</button>';
+      }
+      html += '</td></tr>';
+    });
+    html += '</table>';
+    document.getElementById('daftarOrang').innerHTML = html;
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+function nonaktifkanOrang(personId) {
+  if (!confirm('Nonaktifkan petugas ini? Riwayat penugasan lama tidak akan hilang.')) return;
+  panggilServer('api_nonaktifkanOrang', personId).then(function () {
+    tampilkanPesan('sukses', 'Petugas dinonaktifkan.');
+    muatUlangCacheKandidat();
+    muatDaftarOrang();
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+/**
+ * Sebelumnya modal ini selalu menampilkan "+ berikan" untuk SEMUA peran,
+ * tanpa peduli orang itu sudah punya peran itu atau belum -- jadi kalau
+ * diklik untuk peran yang sudah ada, server diam-diam tidak melakukan
+ * apa-apa (dianggap sudah ada) tapi modal tetap bilang "berhasil". Sekarang
+ * modal menampilkan status sebenarnya: peran yang sudah dimiliki muncul
+ * tombol "cabut", yang belum muncul "+ berikan". Modal TETAP TERBUKA
+ * setelah diklik supaya perubahannya langsung kelihatan.
+ */
+function bukaKelolaPeranOrang(personId) {
+  var orang = (state.semuaOrangCache || []).filter(function (p) { return p.personId === personId; })[0];
+  if (!orang) { tampilkanPesan('error', 'Data orang ini tidak ditemukan, coba muat ulang daftar petugas.'); return; }
+
+  document.getElementById('judulModalKandidat').textContent = 'Kelola Peran — ' + orang.nama;
+  document.getElementById('cariKandidatModal').classList.add('sembunyi');
+  state.personIdSedangDikelola = personId;
+
+  var html = '<p class="kecil">Peran yang sudah dimiliki bisa dicabut; yang belum bisa diberikan.</p>';
+  state.peranList.forEach(function (peran) {
+    var dimiliki = orang.peranDimiliki.filter(function (r) { return r.roleId === peran.role_id; })[0];
+    html += '<div class="baris-peran"><span>' + escapeHtml(peran.nama_peran) + (dimiliki ? ' <span class="lencana terpenuhi">dimiliki</span>' : '') + '</span>';
+    if (dimiliki) {
+      html += '<button class="bahaya" onclick="cabutPeranOrang(\'' + dimiliki.personRoleId + '\', this)">cabut</button>';
+    } else {
+      html += '<button onclick="berikanPeranOrang(\'' + personId + '\',\'' + peran.role_id + '\', this)">+ berikan</button>';
+    }
+    html += '</div>';
+  });
+  document.getElementById('daftarKandidatModal').innerHTML = html;
+  bukaModal('modalKandidat');
+}
+
+function berikanPeranOrang(personId, roleId, elemenTombol) {
+  jalankanDenganTombolSibuk_(elemenTombol, 'Memproses...', function () {
+    return panggilServer('api_berikanPeran', personId, roleId).then(function () {
+      tampilkanPesan('sukses', 'Peran diberikan.');
+      return Promise.all([muatDaftarOrang(), muatUlangCacheKandidat()]).then(function () {
+        bukaKelolaPeranOrang(personId);
+      });
+    });
+  });
+}
+
+function cabutPeranOrang(personRoleId, elemenTombol) {
+  jalankanDenganTombolSibuk_(elemenTombol, 'Memproses...', function () {
+    return panggilServer('api_cabutPeran', personRoleId).then(function () {
+      tampilkanPesan('sukses', 'Peran dicabut.');
+      var personId = state.personIdSedangDikelola;
+      return Promise.all([muatDaftarOrang(), muatUlangCacheKandidat()]).then(function () {
+        bukaKelolaPeranOrang(personId);
+      });
+    });
+  });
+}
+
+// ====================================================================
+// TAB PENGATURAN ATURAN
+// ====================================================================
+function muatDaftarAturan() {
+  document.getElementById('daftarAturan').innerHTML = '<div class="memuat">Memuat...</div>';
+  panggilServer('api_ambilSemuaAturan').then(function (daftar) {
+    var labelTingkat = { BLOCK: 'WAJIB', WARNING: 'PERINGATAN', AUTO: 'OTOMATIS' };
+    var html = '<table><tr><th>Kode</th><th>Nama Aturan</th><th>Tingkat</th><th>Status</th><th>Versi Kebijakan</th><th></th></tr>';
+    daftar.forEach(function (a) {
+      html += '<tr><td>' + a.rule_id + '</td><td>' + escapeHtml(a.nama_aturan) + '</td><td>' + labelTingkat[a.tingkat] + '</td>';
+      html += '<td>' + (a.aktif ? 'Aktif' : 'Nonaktif') + '</td><td>' + a.versi_kebijakan + '</td><td>';
+      if (a.tingkat !== 'BLOCK') {
+        html += '<button class="tautan" onclick="ubahStatusAturan(\'' + a.rule_id + '\',' + (!a.aktif) + ')">' + (a.aktif ? 'matikan' : 'aktifkan') + '</button>';
+      } else {
+        html += '<span class="kecil">tidak bisa dimatikan</span>';
+      }
+      html += '</td></tr>';
+    });
+    html += '</table>';
+    document.getElementById('daftarAturan').innerHTML = html;
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+}
+function ubahStatusAturan(ruleId, aktifBaru) {
+  panggilServer('api_perbaruiAturan', ruleId, { aktif: aktifBaru }).then(function () {
+    tampilkanPesan('sukses', 'Pengaturan aturan diperbarui.'); muatDaftarAturan();
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+// ====================================================================
+// TAB AUDIT
+// ====================================================================
+function muatDaftarAudit() {
+  document.getElementById('daftarAudit').innerHTML = '<div class="memuat">Memuat...</div>';
+  panggilServer('api_ambilLogAudit').then(function (daftar) {
+    daftar.sort(function (a, b) { return new Date(b.waktu) - new Date(a.waktu); });
+    var html = '<table><tr><th>Waktu</th><th>Pelaku</th><th>Aksi</th><th>Jenis Data</th><th>Alasan Override</th></tr>';
+    daftar.slice(0, 200).forEach(function (a) {
+      html += '<tr><td>' + new Date(a.waktu).toLocaleString('id-ID') + '</td><td>' + escapeHtml(a.pelaku_id) + '</td>';
+      html += '<td>' + escapeHtml(a.aksi) + '</td><td>' + escapeHtml(a.jenis_entitas) + '</td><td>' + escapeHtml(a.alasan_override || '-') + '</td></tr>';
+    });
+    html += '</table>';
+    if (daftar.length > 200) html += '<p class="kecil">Menampilkan 200 catatan terbaru dari ' + daftar.length + ' total.</p>';
+    document.getElementById('daftarAudit').innerHTML = html;
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+}
+
+// ====================================================================
+// TAB PENGGUNA
+// ====================================================================
+document.getElementById('btnAturPeran').addEventListener('click', function () {
+  var email = document.getElementById('inputEmailPengguna').value.trim();
+  var peran = document.getElementById('pilihPeranPengguna').value;
+  if (!email) { tampilkanPesan('error', 'Isi alamat email dulu.'); return; }
+  panggilServer('api_aturPeranPengguna', email, peran).then(function () {
+    tampilkanPesan('sukses', 'Peran untuk ' + email + ' diatur menjadi ' + peran + '.');
+    document.getElementById('inputEmailPengguna').value = '';
+    muatDaftarPengguna();
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+});
+function muatDaftarPengguna() {
+  document.getElementById('daftarPengguna').innerHTML = '<div class="memuat">Memuat...</div>';
+  panggilServer('api_ambilPenggunaDanPeran').then(function (daftar) {
+    var html = '<table><tr><th>Email</th><th>Peran</th></tr>';
+    daftar.forEach(function (u) { html += '<tr><td>' + escapeHtml(u.email) + '</td><td>' + escapeHtml(u.peran) + '</td></tr>'; });
+    html += '</table>';
+    document.getElementById('daftarPengguna').innerHTML = html;
+  }).catch(function (e) { tampilkanPesan('error', e.message); });
+}
+</script>
+</body>
+</html>
