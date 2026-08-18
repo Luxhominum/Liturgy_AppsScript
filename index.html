@@ -145,14 +145,109 @@
   .baris-peran button, td button { padding: 6px 12px; font-size: 13px; min-height: 32px; }
   .kecil { font-size: 12px; color: var(--abu-hangat); }
 
-  /* --- Kalender: sel berbentuk jendela lengkung -- elemen ciri khas --- */
-  .kalender-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-  .sel-kalender {
-    border: 1.5px solid var(--garis); background: #fff; padding: 14px 12px 12px; cursor: pointer;
-    border-radius: 40px 40px 10px 10px; text-align: center; transition: border-color 0.15s ease, transform 0.1s ease;
+  /* --- Kalender kerja: navigasi di kiri, jadwal di kanan --- */
+  .kalender-aplikasi {
+    display: grid; grid-template-columns: 214px minmax(0, 1fr); min-height: 650px;
+    background: #fff; border: 1px solid var(--garis-lembut); border-radius: 14px;
+    box-shadow: var(--bayang); overflow: hidden;
   }
-  .sel-kalender:hover { border-color: var(--hijau); transform: translateY(-1px); }
-  .sel-kalender strong { display: block; font-family: "Lora", serif; color: var(--kayu); margin-bottom: 6px; font-size: 14px; }
+  .kalender-sidebar { padding: 18px 14px; border-right: 1px solid var(--garis-lembut); background: var(--kertas-kartu); }
+  .btn-buat-jadwal { width: 100%; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(58,42,29,0.12); }
+  .btn-buat-jadwal::before { content: "+"; font-size: 19px; line-height: 0; margin-right: 7px; }
+  .mini-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 8px; }
+  .mini-toolbar strong { font-family: "Lora", serif; color: var(--kayu); font-size: 13px; text-transform: capitalize; }
+  .tombol-ikon { min-height: 30px; width: 30px; padding: 0; border-radius: 50%; background: transparent; color: var(--tinta); }
+  .tombol-ikon:hover { background: rgba(79,107,73,0.1); color: var(--hijau-tua); }
+  .mini-kalender { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; font-size: 10px; text-align: center; }
+  .mini-nama-hari { padding: 4px 0; color: var(--abu-hangat); font-weight: 700; }
+  .mini-hari {
+    position: relative; min-height: 27px; padding: 0; border-radius: 50%; background: transparent;
+    color: var(--tinta); font-size: 11px; font-weight: 500;
+  }
+  .mini-hari:hover { background: rgba(79,107,73,0.1); color: var(--hijau-tua); }
+  .mini-hari.hari-lain { color: var(--abu-hangat); opacity: 0.55; }
+  .mini-hari.terpilih { background: var(--hijau); color: #fff; }
+  .mini-hari.hari-ini:not(.terpilih) { box-shadow: inset 0 0 0 1.5px var(--emas); color: var(--kayu); }
+  .mini-hari.ada-jadwal::after {
+    content: ""; position: absolute; width: 4px; height: 4px; border-radius: 50%; background: var(--emas);
+    left: 50%; bottom: 2px; transform: translateX(-50%);
+  }
+  .mini-hari.terpilih.ada-jadwal::after { background: #fff; }
+  .kalender-legenda { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--garis-lembut); }
+  .kalender-legenda h3 { margin: 0 0 8px; font-size: 12px; }
+  .kalender-legenda span { display: flex; align-items: center; gap: 7px; margin: 6px 0; font-size: 11.5px; color: var(--abu-hangat); }
+  .titik-legenda { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 auto; }
+  .kalender-utama { min-width: 0; background: #fff; }
+  .kalender-toolbar {
+    display: flex; align-items: center; gap: 8px; min-height: 66px; padding: 12px 16px;
+    border-bottom: 1px solid var(--garis-lembut); flex-wrap: wrap;
+  }
+  .kalender-toolbar h2 { margin: 0 12px 0 4px; font-size: 17px; text-transform: capitalize; flex: 1; }
+  .btn-hari-ini { min-height: 36px; padding: 7px 13px; }
+  .kontrol-tampilan { display: flex; border: 1px solid var(--garis); border-radius: 8px; overflow: hidden; }
+  .kontrol-tampilan button { min-height: 34px; padding: 6px 11px; border-radius: 0; background: #fff; color: var(--tinta); }
+  .kontrol-tampilan button + button { border-left: 1px solid var(--garis); }
+  .kontrol-tampilan button.aktif { background: var(--hijau); color: #fff; }
+  .kalender-grid { min-height: 570px; background: #fff; }
+  .kalender-scroll { overflow: auto; max-height: 720px; }
+  .kalender-minggu {
+    display: grid; grid-template-columns: 62px repeat(7, minmax(112px, 1fr));
+    grid-template-rows: 54px repeat(13, 58px); min-width: 850px; position: relative;
+  }
+  .kepala-waktu, .kepala-hari {
+    position: sticky; top: 0; z-index: 4; background: #fff; border-bottom: 1px solid var(--garis-lembut);
+  }
+  .kepala-waktu { grid-column: 1; grid-row: 1; }
+  .kepala-hari { padding: 7px 4px; text-align: center; border-left: 1px solid var(--garis-lembut); }
+  .kepala-hari span { display: block; color: var(--abu-hangat); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+  .kepala-hari strong {
+    display: inline-flex; align-items: center; justify-content: center; width: 29px; height: 29px;
+    border-radius: 50%; color: var(--kayu); font-size: 14px;
+  }
+  .kepala-hari.hari-ini strong { background: var(--hijau); color: #fff; }
+  .label-jam { padding: 0 8px; text-align: right; transform: translateY(-8px); color: var(--abu-hangat); font-size: 10px; }
+  .sel-waktu {
+    border-left: 1px solid var(--garis-lembut); border-top: 1px solid var(--garis-lembut);
+    cursor: pointer; transition: background 0.12s ease;
+  }
+  .sel-waktu:hover { background: rgba(79,107,73,0.05); }
+  .acara-kalender {
+    z-index: 2; margin: 3px 4px; padding: 5px 7px; border-radius: 6px; border-left: 4px solid transparent;
+    color: #fff; font-size: 11px; line-height: 1.2; cursor: pointer; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(58,42,29,0.18); text-align: left;
+  }
+  .acara-kalender:hover { filter: brightness(0.94); }
+  .acara-kalender strong { display: block; color: inherit; font-family: "Source Sans 3", sans-serif; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .acara-kalender span { display: block; margin-top: 2px; opacity: 0.9; font-size: 10px; }
+  .acara-sabtu { background: var(--marun); border-left-color: var(--kayu); }
+  .acara-pagi { background: var(--hijau); border-left-color: var(--hijau-tua); }
+  .acara-sore { background: var(--emas); border-left-color: var(--kayu); }
+  .acara-khusus { background: var(--tinta); border-left-color: var(--kayu); }
+  .acara-final { outline: 2px solid rgba(58,42,29,0.18); }
+  .kalender-agenda-mobile { display: none; }
+  .agenda-hari { border-bottom: 1px solid var(--garis-lembut); padding: 14px; }
+  .agenda-hari:last-child { border-bottom: none; }
+  .agenda-tanggal { display: flex; align-items: baseline; gap: 7px; margin-bottom: 9px; }
+  .agenda-tanggal strong { font-family: "Lora", serif; color: var(--kayu); }
+  .agenda-tanggal span { color: var(--abu-hangat); font-size: 12px; }
+  .agenda-kosong { color: var(--abu-hangat); font-size: 12px; padding: 7px 0; }
+  .agenda-acara {
+    display: flex; gap: 10px; width: 100%; min-height: 48px; margin: 7px 0; padding: 9px 11px;
+    border-radius: 8px; color: #fff; text-align: left; align-items: center;
+  }
+  .agenda-acara .agenda-jam { min-width: 42px; font-weight: 700; font-size: 12px; }
+  .agenda-acara strong { color: inherit; font-family: "Source Sans 3", sans-serif; display: block; font-size: 13px; }
+  .agenda-acara small { opacity: 0.88; }
+  .kalender-bulan { padding: 0; overflow: auto; }
+  .bulan-grid { display: grid; grid-template-columns: repeat(7, minmax(105px, 1fr)); min-width: 760px; }
+  .bulan-nama-hari { padding: 10px; text-align: center; color: var(--abu-hangat); font-size: 11px; font-weight: 700; border-bottom: 1px solid var(--garis-lembut); }
+  .bulan-hari { min-height: 104px; padding: 7px; border-right: 1px solid var(--garis-lembut); border-bottom: 1px solid var(--garis-lembut); cursor: pointer; }
+  .bulan-hari:hover { background: rgba(79,107,73,0.04); }
+  .bulan-hari.hari-lain { background: var(--kertas-kartu); color: var(--abu-hangat); }
+  .bulan-angka { display: inline-flex; width: 25px; height: 25px; align-items: center; justify-content: center; border-radius: 50%; font-size: 12px; }
+  .bulan-hari.hari-ini .bulan-angka { background: var(--hijau); color: #fff; }
+  .bulan-acara { display: block; width: 100%; margin-top: 4px; padding: 4px 6px; border-radius: 4px; color: #fff; font-size: 10.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; min-height: 25px; }
+  .kalender-petunjuk { display: none; }
 
   /* --- Modal --- */
   .modal-latar { display: none; position: fixed; inset: 0; background: rgba(58,42,29,0.45); align-items: center; justify-content: center; z-index: 50; padding: 16px; }
@@ -168,14 +263,25 @@
   .memuat::before { content: "\2726  "; }
   .sembunyi { display: none !important; }
 
-  @media (max-width: 600px) {
+  @media (max-width: 760px) {
     main { padding: 14px; }
     .kartu { padding: 14px; border-radius: 10px; }
     header h1 { font-size: 17px; }
     button { padding: 10px 14px; }
-    .nav-bulan { flex-wrap: nowrap; justify-content: space-between; }
-    .nav-bulan button { padding: 9px 10px; font-size: 13px; }
-    .teks-nav-bulan { display: none; }
+    .kalender-aplikasi { display: block; min-height: 0; border-radius: 10px; }
+    .kalender-sidebar { display: flex; gap: 9px; padding: 10px; border-right: 0; border-bottom: 1px solid var(--garis-lembut); }
+    .btn-buat-jadwal { width: auto; margin: 0; flex: 1; }
+    .mini-toolbar, .mini-kalender, .kalender-legenda { display: none; }
+    .kalender-toolbar { min-height: 58px; padding: 9px 10px; gap: 4px; }
+    .kalender-toolbar h2 { order: 3; flex-basis: 100%; font-size: 14px; margin: 2px 0 0; }
+    .btn-hari-ini { min-height: 34px; padding: 6px 10px; font-size: 12px; }
+    .kontrol-tampilan { margin-left: auto; }
+    .kontrol-tampilan button { font-size: 12px; }
+    .kalender-scroll, .kalender-bulan { display: none; }
+    .kalender-agenda-mobile { display: block; }
+    .kalender-grid { min-height: 260px; }
+    .kalender-petunjuk { display: block; padding: 9px 14px; background: #F6EBCF; color: #7A5A16; font-size: 11px; }
+    #kartuDetailAkhirPekan { margin-top: 14px; }
   }
 
   @media print {
@@ -207,30 +313,42 @@
 
   <!-- ===================== TAB KALENDER ===================== -->
   <section id="tabKalender">
-    <div class="kartu">
-      <h2>Pilih atau Buat Akhir Pekan</h2>
-      <p class="kecil">Masukkan tanggal Minggu (tanggal acuan akhir pekan), lalu centang sesi mana saja yang ada minggu itu. Tidak semua minggu punya 3 sesi -- centang sesuai kebutuhan. Sesi tidak baku (misa khusus) bisa ditambah setelah akhir pekan dibuka.</p>
-      <div class="baris">
-        <label>Tanggal Minggu: <input type="date" id="inputTanggalMinggu"></label>
-      </div>
-      <div class="baris" style="margin-top:8px;">
-        <label><input type="checkbox" id="centangSabtuSore" checked> Sabtu Sore</label>
-        <label><input type="checkbox" id="centangMingguPagi" checked> Minggu Pagi</label>
-        <label><input type="checkbox" id="centangMingguSore" checked> Minggu Sore</label>
-      </div>
-      <div class="baris" style="margin-top:8px;">
-        <button id="btnBukaAkhirPekan">Buka / Buat Akhir Pekan</button>
-      </div>
-    </div>
+    <div class="kalender-aplikasi">
+      <aside class="kalender-sidebar">
+        <button id="btnBuatJadwalBaru" class="btn-buat-jadwal">Buat Jadwal</button>
+        <div>
+          <div class="mini-toolbar">
+            <strong id="labelMiniBulan"></strong>
+            <span>
+              <button class="tombol-ikon" id="btnMiniSebelumnya" aria-label="Bulan sebelumnya">&#8249;</button>
+              <button class="tombol-ikon" id="btnMiniBerikutnya" aria-label="Bulan berikutnya">&#8250;</button>
+            </span>
+          </div>
+          <div id="miniKalender" class="mini-kalender"></div>
+        </div>
+        <div class="kalender-legenda">
+          <h3>Jenis sesi</h3>
+          <span><i class="titik-legenda acara-sabtu"></i>Sabtu Sore · 17.00</span>
+          <span><i class="titik-legenda acara-pagi"></i>Minggu Pagi · 08.00</span>
+          <span><i class="titik-legenda acara-sore"></i>Minggu Sore · 17.00</span>
+          <span><i class="titik-legenda acara-khusus"></i>Sesi Khusus · 12.00</span>
+        </div>
+      </aside>
 
-    <div class="kartu">
-      <h2>Akhir Pekan Bulan Ini</h2>
-      <div class="baris nav-bulan" style="margin-bottom:10px;">
-        <button class="sekunder" id="btnBulanSebelumnya">&laquo; <span class="teks-nav-bulan">Bulan </span>Sebelumnya</button>
-        <strong id="labelBulan"></strong>
-        <button class="sekunder" id="btnBulanBerikutnya"><span class="teks-nav-bulan">Bulan </span>Berikutnya &raquo;</button>
+      <div class="kalender-utama">
+        <div class="kalender-toolbar">
+          <button class="sekunder btn-hari-ini" id="btnHariIni">Hari ini</button>
+          <button class="tombol-ikon" id="btnBulanSebelumnya" aria-label="Periode sebelumnya">&#8249;</button>
+          <button class="tombol-ikon" id="btnBulanBerikutnya" aria-label="Periode berikutnya">&#8250;</button>
+          <h2 id="labelBulan"></h2>
+          <div class="kontrol-tampilan" aria-label="Tampilan kalender">
+            <button id="btnTampilanMinggu" class="aktif">Minggu</button>
+            <button id="btnTampilanBulan">Bulan</button>
+          </div>
+        </div>
+        <div class="kalender-petunjuk">Tampilan ringkas 3 hari. Gunakan panah untuk melihat periode berikutnya.</div>
+        <div id="daftarKalender" class="kalender-grid"><div class="memuat">Memuat...</div></div>
       </div>
-      <div id="daftarKalender" class="kalender-grid"><div class="memuat">Memuat...</div></div>
     </div>
 
     <div class="kartu sembunyi" id="kartuDetailAkhirPekan"></div>
@@ -315,6 +433,26 @@
 <!-- ===================== AREA CETAK (hanya tampil saat mode cetak) ===================== -->
 <div id="areaCetak" class="sembunyi"></div>
 
+<!-- ===================== MODAL: BUAT / BUKA JADWAL ===================== -->
+<div class="modal-latar" id="modalBuatJadwal">
+  <div class="modal-kotak">
+    <h2>Buat Jadwal Akhir Pekan</h2>
+    <p class="kecil">Pilih tanggal Minggu dan sesi yang berlaku. Jam di kalender hanya penanda tampilan tetap dan tidak disimpan sebagai kolom baru.</p>
+    <div id="pesanModalBuatJadwal"></div>
+    <label for="inputTanggalMinggu">Tanggal Minggu</label>
+    <input type="date" id="inputTanggalMinggu" style="width:100%; margin-top:4px;">
+    <div style="margin-top:14px;">
+      <label class="opsi-kandidat"><input type="checkbox" id="centangSabtuSore" checked><span><strong>Sabtu Sore</strong><br><span class="kecil">Ditampilkan pukul 17.00</span></span></label>
+      <label class="opsi-kandidat" style="margin-top:10px;"><input type="checkbox" id="centangMingguPagi" checked><span><strong>Minggu Pagi</strong><br><span class="kecil">Ditampilkan pukul 08.00</span></span></label>
+      <label class="opsi-kandidat" style="margin-top:10px;"><input type="checkbox" id="centangMingguSore" checked><span><strong>Minggu Sore</strong><br><span class="kecil">Ditampilkan pukul 17.00</span></span></label>
+    </div>
+    <div class="baris" style="margin-top:18px; justify-content:flex-end;">
+      <button class="sekunder" onclick="tutupModal('modalBuatJadwal')">Batal</button>
+      <button id="btnBukaAkhirPekan">Buka / Buat Jadwal</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== MODAL: PILIH KANDIDAT ===================== -->
 <div class="modal-latar" id="modalKandidat">
   <div class="modal-kotak">
@@ -358,7 +496,8 @@ var state = {
   semuaOrangCache: null, dataWilayahLingkunganCache: null, dataPetugasSedangDimuat: null,
   aturanCache: null, aturanSedangDimuat: null,
   auditItems: [], auditOffset: 0, auditHasMore: true, auditSedangDimuat: null,
-  bulanTampil: new Date(), akhirPekanAktif: null,
+  bulanTampil: new Date(), tanggalFokus: new Date(), modeKalender: 'MINGGU',
+  akhirPekanKalender: [], kalenderSedangDimuat: null, akhirPekanAktif: null,
   aksiPeringatanTertunda: null // dipakai modal peringatan untuk menyimpan aksi yang mau dijalankan ulang
 };
 
@@ -450,8 +589,11 @@ function kapital(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 // MULAI APLIKASI
 // ====================================================================
 window.addEventListener('DOMContentLoaded', function () {
-  var rentangAwal = parameterKalenderBulan_();
-  document.getElementById('labelBulan').textContent = rentangAwal.namaBulan;
+  state.tanggalFokus = awalHari_(new Date());
+  state.bulanTampil = new Date(state.tanggalFokus.getFullYear(), state.tanggalFokus.getMonth(), 1);
+  var rentangAwal = parameterKalenderTampil_();
+  document.getElementById('labelBulan').textContent = rentangAwal.label;
+  renderMiniKalender_();
   document.getElementById('daftarKalender').innerHTML = '<div class="memuat">Memuat...</div>';
 
   panggilServer('api_ambilDataAwal', rentangAwal.awal, rentangAwal.akhir).then(function (data) {
@@ -466,6 +608,7 @@ window.addEventListener('DOMContentLoaded', function () {
       document.querySelector('button[data-tab="audit"]').classList.add('sembunyi');
       document.querySelector('button[data-tab="pengguna"]').classList.add('sembunyi');
     }
+    aturAksesKalender_();
     isiPilihanWilayahLingkungan();
     tampilkanDaftarKalender_(data.akhirPekanList || []);
   }).catch(function (e) { tampilkanPesan('error', 'Gagal memuat data awal: ' + e.message); });
@@ -484,48 +627,252 @@ function isiPilihanWilayahLingkungan() {
 // ====================================================================
 // TAB KALENDER
 // ====================================================================
-document.getElementById('btnBulanSebelumnya').addEventListener('click', function () {
-  state.bulanTampil.setMonth(state.bulanTampil.getMonth() - 1); muatKalenderBulan();
-});
-document.getElementById('btnBulanBerikutnya').addEventListener('click', function () {
-  state.bulanTampil.setMonth(state.bulanTampil.getMonth() + 1); muatKalenderBulan();
-});
+var JAM_TAMPIL_SESI = {
+  SABTU_SORE: { jam: 17, label: '17.00', kelas: 'acara-sabtu' },
+  MINGGU_PAGI: { jam: 8, label: '08.00', kelas: 'acara-pagi' },
+  MINGGU_SORE: { jam: 17, label: '17.00', kelas: 'acara-sore' },
+  KHUSUS: { jam: 12, label: '12.00', kelas: 'acara-khusus' }
+};
+var NAMA_HARI_PENDEK = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
-function parameterKalenderBulan_() {
-  var tahun = state.bulanTampil.getFullYear(), bulan = state.bulanTampil.getMonth();
+function awalHari_(tanggal) { return new Date(tanggal.getFullYear(), tanggal.getMonth(), tanggal.getDate()); }
+function tambahHari_(tanggal, jumlah) { var hasil = new Date(tanggal); hasil.setDate(hasil.getDate() + jumlah); return hasil; }
+function awalMinggu_(tanggal) { var hasil = awalHari_(tanggal); hasil.setDate(hasil.getDate() - hasil.getDay()); return hasil; }
+function kunciTanggal_(tanggal) {
+  return tanggal.getFullYear() + '-' + ('0' + (tanggal.getMonth() + 1)).slice(-2) + '-' + ('0' + tanggal.getDate()).slice(-2);
+}
+function tanggalDariKunci_(kunci) {
+  var bagian = String(kunci).split('-');
+  return new Date(Number(bagian[0]), Number(bagian[1]) - 1, Number(bagian[2]));
+}
+function tanggalMingguDariTanggal_(tanggal) {
+  var hasil = awalHari_(tanggal);
+  var selisih = (7 - hasil.getDay()) % 7;
+  hasil.setDate(hasil.getDate() + selisih);
+  return hasil;
+}
+function apakahMobile_() { return window.matchMedia && window.matchMedia('(max-width: 760px)').matches; }
+
+function parameterKalenderTampil_() {
+  var fokus = awalHari_(state.tanggalFokus);
+  if (state.modeKalender === 'BULAN') {
+    var awalBulan = new Date(fokus.getFullYear(), fokus.getMonth(), 1);
+    var akhirBulan = new Date(fokus.getFullYear(), fokus.getMonth() + 1, 0);
+    var awalGrid = awalMinggu_(awalBulan);
+    var akhirGrid = tambahHari_(awalMinggu_(akhirBulan), 6);
+    return {
+      awalTampil: awalGrid, akhirTampil: akhirGrid,
+      awal: awalGrid.toISOString(), akhir: tambahHari_(akhirGrid, 1).toISOString(),
+      label: awalBulan.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
+    };
+  }
+  var awal = awalMinggu_(fokus), akhir = tambahHari_(awal, 6);
+  var labelAwal = awal.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+  var labelAkhir = akhir.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
   return {
-    namaBulan: state.bulanTampil.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
-    awal: new Date(tahun, bulan, 1).toISOString(),
-    akhir: new Date(tahun, bulan + 1, 0).toISOString()
+    awalTampil: awal, akhirTampil: akhir,
+    awal: awal.toISOString(), akhir: tambahHari_(akhir, 1).toISOString(),
+    label: labelAwal + ' – ' + labelAkhir
   };
 }
 
+function aturAksesKalender_() {
+  var bolehMengubah = state.peran === 'ADMIN' || state.peran === 'SCHEDULER';
+  document.getElementById('btnBuatJadwalBaru').classList.toggle('sembunyi', !bolehMengubah);
+}
+
+document.getElementById('btnBulanSebelumnya').addEventListener('click', function () {
+  var langkah = state.modeKalender === 'BULAN' ? -1 : (apakahMobile_() ? -3 : -7);
+  if (state.modeKalender === 'BULAN') state.tanggalFokus = new Date(state.tanggalFokus.getFullYear(), state.tanggalFokus.getMonth() - 1, 1);
+  else state.tanggalFokus = tambahHari_(state.tanggalFokus, langkah);
+  state.bulanTampil = new Date(state.tanggalFokus.getFullYear(), state.tanggalFokus.getMonth(), 1);
+  muatKalenderBulan();
+});
+document.getElementById('btnBulanBerikutnya').addEventListener('click', function () {
+  var langkah = state.modeKalender === 'BULAN' ? 1 : (apakahMobile_() ? 3 : 7);
+  if (state.modeKalender === 'BULAN') state.tanggalFokus = new Date(state.tanggalFokus.getFullYear(), state.tanggalFokus.getMonth() + 1, 1);
+  else state.tanggalFokus = tambahHari_(state.tanggalFokus, langkah);
+  state.bulanTampil = new Date(state.tanggalFokus.getFullYear(), state.tanggalFokus.getMonth(), 1);
+  muatKalenderBulan();
+});
+
+document.getElementById('btnHariIni').addEventListener('click', function () {
+  state.tanggalFokus = awalHari_(new Date());
+  state.bulanTampil = new Date(state.tanggalFokus.getFullYear(), state.tanggalFokus.getMonth(), 1);
+  muatKalenderBulan();
+});
+document.getElementById('btnTampilanMinggu').addEventListener('click', function () { ubahModeKalender_('MINGGU'); });
+document.getElementById('btnTampilanBulan').addEventListener('click', function () { ubahModeKalender_('BULAN'); });
+document.getElementById('btnMiniSebelumnya').addEventListener('click', function () {
+  state.bulanTampil = new Date(state.bulanTampil.getFullYear(), state.bulanTampil.getMonth() - 1, 1); renderMiniKalender_();
+});
+document.getElementById('btnMiniBerikutnya').addEventListener('click', function () {
+  state.bulanTampil = new Date(state.bulanTampil.getFullYear(), state.bulanTampil.getMonth() + 1, 1); renderMiniKalender_();
+});
+document.getElementById('btnBuatJadwalBaru').addEventListener('click', function () { bukaModalBuatJadwal(state.tanggalFokus); });
+
+function ubahModeKalender_(mode) {
+  if (state.modeKalender === mode) return;
+  state.modeKalender = mode;
+  muatKalenderBulan();
+}
+
+function daftarAcaraKalender_() {
+  var hasil = [];
+  (state.akhirPekanKalender || []).forEach(function (akhirPekan) {
+    (akhirPekan.sesiList || []).forEach(function (sesi) {
+      var waktu = JAM_TAMPIL_SESI[sesi.jenisSesi] || JAM_TAMPIL_SESI.KHUSUS;
+      hasil.push({
+        weekendId: akhirPekan.weekendId, status: akhirPekan.status, semuaTerpenuhi: akhirPekan.semuaTerpenuhi,
+        sessionId: sesi.sessionId, jenisSesi: sesi.jenisSesi, labelSesi: sesi.labelSesi,
+        tanggal: new Date(sesi.tanggalSesi), jam: waktu.jam, labelJam: waktu.label, kelas: waktu.kelas
+      });
+    });
+  });
+  return hasil;
+}
+
+function acaraUntukTanggal_(tanggal, semuaAcara) {
+  var kunci = kunciTanggal_(tanggal);
+  return semuaAcara.filter(function (acara) { return kunciTanggal_(acara.tanggal) === kunci; })
+    .sort(function (a, b) { return a.jam - b.jam; });
+}
+
+function labelStatusAkhirPekan_(acara) {
+  if (acara.status === 'FINAL') return 'Final';
+  return acara.semuaTerpenuhi ? 'Lengkap' : 'Belum lengkap';
+}
+
+function htmlTombolAcara_(acara, kelasTambahan) {
+  return '<button class="' + kelasTambahan + ' ' + acara.kelas + (acara.status === 'FINAL' ? ' acara-final' : '') + '" ' +
+    'onclick="event.stopPropagation();bukaDetailAkhirPekan(\'' + acara.weekendId + '\')" title="Buka ' + escapeHtml(acara.labelSesi) + '">' +
+    '<strong>' + escapeHtml(acara.labelSesi) + '</strong><span>' + acara.labelJam + ' · ' + labelStatusAkhirPekan_(acara) + '</span></button>';
+}
+
+function renderKalenderMinggu_(rentang, semuaAcara) {
+  var html = '<div class="kalender-scroll"><div class="kalender-minggu"><div class="kepala-waktu"></div>';
+  var hari = [], i, jam;
+  for (i = 0; i < 7; i++) {
+    var tanggal = tambahHari_(rentang.awalTampil, i); hari.push(tanggal);
+    var hariIni = kunciTanggal_(tanggal) === kunciTanggal_(new Date()) ? ' hari-ini' : '';
+    html += '<div class="kepala-hari' + hariIni + '" style="grid-column:' + (i + 2) + ';grid-row:1"><span>' + NAMA_HARI_PENDEK[tanggal.getDay()] + '</span><strong>' + tanggal.getDate() + '</strong></div>';
+  }
+  for (jam = 7; jam <= 19; jam++) {
+    var baris = jam - 7 + 2;
+    html += '<div class="label-jam" style="grid-column:1;grid-row:' + baris + '">' + ('0' + jam).slice(-2) + '.00</div>';
+    for (i = 0; i < 7; i++) {
+      html += '<div class="sel-waktu" style="grid-column:' + (i + 2) + ';grid-row:' + baris + '" onclick="bukaModalBuatJadwal(\'' + kunciTanggal_(hari[i]) + '\')"></div>';
+    }
+  }
+  semuaAcara.forEach(function (acara) {
+    var indeksHari = Math.round((awalHari_(acara.tanggal) - rentang.awalTampil) / 86400000);
+    if (indeksHari < 0 || indeksHari > 6) return;
+    var baris = Math.max(2, Math.min(14, acara.jam - 7 + 2));
+    html += htmlTombolAcara_(acara, 'acara-kalender')
+      .replace('class="', 'style="grid-column:' + (indeksHari + 2) + ';grid-row:' + baris + '" class="');
+  });
+  html += '</div></div>' + renderAgendaMobile_(state.tanggalFokus, semuaAcara);
+  return html;
+}
+
+function renderAgendaMobile_(tanggalMulai, semuaAcara) {
+  var html = '<div class="kalender-agenda-mobile">';
+  for (var i = 0; i < 3; i++) {
+    var tanggal = tambahHari_(awalHari_(tanggalMulai), i);
+    var acaraHari = acaraUntukTanggal_(tanggal, semuaAcara);
+    html += '<section class="agenda-hari"><div class="agenda-tanggal"><strong>' + NAMA_HARI_PENDEK[tanggal.getDay()] + ', ' + tanggal.getDate() + '</strong><span>' + tanggal.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }) + '</span></div>';
+    if (acaraHari.length === 0) {
+      var bolehMembuat = state.peran === 'ADMIN' || state.peran === 'SCHEDULER';
+      html += '<div class="agenda-kosong">Belum ada jadwal.' + (bolehMembuat ? ' <button class="tautan" onclick="bukaModalBuatJadwal(\'' + kunciTanggal_(tanggal) + '\')">Buat jadwal</button>' : '') + '</div>';
+    } else {
+      acaraHari.forEach(function (acara) { html += htmlTombolAcara_(acara, 'agenda-acara'); });
+    }
+    html += '</section>';
+  }
+  return html + '</div>';
+}
+
+function renderKalenderBulan_(rentang, semuaAcara) {
+  var html = '<div class="kalender-bulan"><div class="bulan-grid">';
+  NAMA_HARI_PENDEK.forEach(function (nama) { html += '<div class="bulan-nama-hari">' + nama + '</div>'; });
+  for (var tanggal = new Date(rentang.awalTampil); tanggal <= rentang.akhirTampil; tanggal = tambahHari_(tanggal, 1)) {
+    var tanggalSaatIni = new Date(tanggal);
+    var kelas = tanggalSaatIni.getMonth() === state.tanggalFokus.getMonth() ? '' : ' hari-lain';
+    if (kunciTanggal_(tanggalSaatIni) === kunciTanggal_(new Date())) kelas += ' hari-ini';
+    html += '<div class="bulan-hari' + kelas + '" onclick="pilihTanggalKalender(\'' + kunciTanggal_(tanggalSaatIni) + '\')"><span class="bulan-angka">' + tanggalSaatIni.getDate() + '</span>';
+    acaraUntukTanggal_(tanggalSaatIni, semuaAcara).forEach(function (acara) {
+      html += '<button class="bulan-acara ' + acara.kelas + '" onclick="event.stopPropagation();bukaDetailAkhirPekan(\'' + acara.weekendId + '\')">' + acara.labelJam + ' ' + escapeHtml(acara.labelSesi) + '</button>';
+    });
+    html += '</div>';
+  }
+  return html + '</div></div>' + renderAgendaMobile_(state.tanggalFokus, semuaAcara);
+}
+
+function renderMiniKalender_() {
+  var fokusBulan = new Date(state.bulanTampil.getFullYear(), state.bulanTampil.getMonth(), 1);
+  document.getElementById('labelMiniBulan').textContent = fokusBulan.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  var mulai = awalMinggu_(fokusBulan), akhir = tambahHari_(awalMinggu_(new Date(fokusBulan.getFullYear(), fokusBulan.getMonth() + 1, 0)), 6);
+  var kunciBerisi = {};
+  daftarAcaraKalender_().forEach(function (a) { kunciBerisi[kunciTanggal_(a.tanggal)] = true; });
+  var html = '';
+  NAMA_HARI_PENDEK.forEach(function (nama) { html += '<span class="mini-nama-hari">' + nama.charAt(0) + '</span>'; });
+  for (var tanggal = mulai; tanggal <= akhir; tanggal = tambahHari_(tanggal, 1)) {
+    var kunci = kunciTanggal_(tanggal), kelas = '';
+    if (tanggal.getMonth() !== fokusBulan.getMonth()) kelas += ' hari-lain';
+    if (kunci === kunciTanggal_(state.tanggalFokus)) kelas += ' terpilih';
+    if (kunci === kunciTanggal_(new Date())) kelas += ' hari-ini';
+    if (kunciBerisi[kunci]) kelas += ' ada-jadwal';
+    html += '<button class="mini-hari' + kelas + '" onclick="pilihTanggalKalender(\'' + kunci + '\')">' + tanggal.getDate() + '</button>';
+  }
+  document.getElementById('miniKalender').innerHTML = html;
+}
+
+function pilihTanggalKalender(kunci) {
+  state.tanggalFokus = tanggalDariKunci_(kunci);
+  state.bulanTampil = new Date(state.tanggalFokus.getFullYear(), state.tanggalFokus.getMonth(), 1);
+  if (state.modeKalender === 'BULAN') state.modeKalender = 'MINGGU';
+  muatKalenderBulan();
+}
+
+function bukaModalBuatJadwal(tanggal) {
+  if (state.peran !== 'ADMIN' && state.peran !== 'SCHEDULER') return;
+  var dasar = typeof tanggal === 'string' ? tanggalDariKunci_(tanggal) : awalHari_(tanggal || new Date());
+  document.getElementById('inputTanggalMinggu').value = kunciTanggal_(tanggalMingguDariTanggal_(dasar));
+  document.getElementById('pesanModalBuatJadwal').innerHTML = '';
+  bukaModal('modalBuatJadwal');
+}
+
+function tampilkanPesanModalBuat_(teks) {
+  document.getElementById('pesanModalBuatJadwal').innerHTML = '<div class="pesan-error">' + escapeHtml(teks) + '</div>';
+}
+
 function tampilkanDaftarKalender_(daftar) {
-  var el = document.getElementById('daftarKalender');
-  if (daftar.length === 0) { el.innerHTML = '<p class="kecil">Belum ada akhir pekan dibuat untuk bulan ini.</p>'; return; }
-  el.innerHTML = daftar.map(function (w) {
-    var kelasStatus = w.status === 'DRAFT' ? 'draft' : (w.status === 'COMPLETE' ? 'complete' : 'final');
-    var labelStatus = { DRAFT: 'Draft', COMPLETE: 'Lengkap', FINAL: 'Final' }[w.status];
-    return '<div class="sel-kalender" onclick="bukaDetailAkhirPekan(\'' + w.weekendId + '\')">' +
-      '<strong>' + formatTanggal(w.tanggalAcuan) + '</strong><br>' +
-      '<span class="lencana ' + kelasStatus + '">' + labelStatus + '</span> ' +
-      '<span class="kecil">' + (w.semuaTerpenuhi ? 'Sudah lengkap' : 'Belum lengkap') + '</span></div>';
-  }).join('');
+  state.akhirPekanKalender = daftar || [];
+  var rentang = parameterKalenderTampil_(), acara = daftarAcaraKalender_();
+  document.getElementById('labelBulan').textContent = rentang.label;
+  document.getElementById('btnTampilanMinggu').classList.toggle('aktif', state.modeKalender === 'MINGGU');
+  document.getElementById('btnTampilanBulan').classList.toggle('aktif', state.modeKalender === 'BULAN');
+  document.getElementById('daftarKalender').innerHTML = state.modeKalender === 'BULAN' ? renderKalenderBulan_(rentang, acara) : renderKalenderMinggu_(rentang, acara);
+  renderMiniKalender_();
 }
 
 function muatKalenderBulan() {
-  var rentang = parameterKalenderBulan_();
-  document.getElementById('labelBulan').textContent = rentang.namaBulan;
-
+  var rentang = parameterKalenderTampil_();
+  document.getElementById('labelBulan').textContent = rentang.label;
+  renderMiniKalender_();
   document.getElementById('daftarKalender').innerHTML = '<div class="memuat">Memuat...</div>';
-  panggilServer('api_ambilAkhirPekanDalamRentang', rentang.awal, rentang.akhir)
-    .then(tampilkanDaftarKalender_)
-    .catch(function (e) { tampilkanPesan('error', e.message); });
+  var nomorPermintaan = (state.kalenderPermintaan || 0) + 1;
+  state.kalenderPermintaan = nomorPermintaan;
+  state.kalenderSedangDimuat = panggilServer('api_ambilAkhirPekanDalamRentang', rentang.awal, rentang.akhir)
+    .then(function (daftar) { if (nomorPermintaan === state.kalenderPermintaan) tampilkanDaftarKalender_(daftar); return daftar; })
+    .catch(function (e) { if (nomorPermintaan === state.kalenderPermintaan) tampilkanPesan('error', e.message); })
+    .finally(function () { if (nomorPermintaan === state.kalenderPermintaan) state.kalenderSedangDimuat = null; });
+  return state.kalenderSedangDimuat;
 }
 
 document.getElementById('btnBukaAkhirPekan').addEventListener('click', function (e) {
   var tgl = document.getElementById('inputTanggalMinggu').value;
-  if (!tgl) { tampilkanPesan('error', 'Pilih tanggal Minggu dulu.'); return; }
+  if (!tgl) { tampilkanPesanModalBuat_('Pilih tanggal Minggu dulu.'); return; }
   var tglObj = new Date(tgl + 'T00:00:00');
   var sabtu = new Date(tglObj); sabtu.setDate(sabtu.getDate() - 1);
 
@@ -533,18 +880,27 @@ document.getElementById('btnBukaAkhirPekan').addEventListener('click', function 
   if (document.getElementById('centangSabtuSore').checked) sesiDipilih.push({ jenisSesi: 'SABTU_SORE', tanggalSesi: sabtu.toISOString() });
   if (document.getElementById('centangMingguPagi').checked) sesiDipilih.push({ jenisSesi: 'MINGGU_PAGI', tanggalSesi: tglObj.toISOString() });
   if (document.getElementById('centangMingguSore').checked) sesiDipilih.push({ jenisSesi: 'MINGGU_SORE', tanggalSesi: tglObj.toISOString() });
-  if (sesiDipilih.length === 0) { tampilkanPesan('error', 'Centang minimal satu sesi.'); return; }
+  if (sesiDipilih.length === 0) { tampilkanPesanModalBuat_('Centang minimal satu sesi.'); return; }
 
+  document.getElementById('pesanModalBuatJadwal').innerHTML = '';
   jalankanDenganTombolSibuk_(e.target, 'Membuka...', function () {
     return panggilServer('api_ambilAtauBuatAkhirPekan', tglObj.toISOString(), sesiDipilih)
-      .then(function (detail) { state.akhirPekanAktif = detail; tampilkanDetailAkhirPekan(detail); muatKalenderBulan(); })
-      .catch(function (e2) { tampilkanPesan('error', e2.message); });
+      .then(function (detail) {
+        tutupModal('modalBuatJadwal'); state.akhirPekanAktif = detail; tampilkanDetailAkhirPekan(detail); muatKalenderBulan();
+      })
+      .catch(function (e2) { tampilkanPesanModalBuat_(e2.message); });
   });
 });
 
 function bukaDetailAkhirPekan(weekendId) {
+  var kartu = document.getElementById('kartuDetailAkhirPekan');
+  kartu.classList.remove('sembunyi');
+  kartu.innerHTML = '<div class="memuat">Memuat detail jadwal...</div>';
   panggilServer('api_ambilDetailAkhirPekan', weekendId)
-    .then(function (detail) { state.akhirPekanAktif = detail; tampilkanDetailAkhirPekan(detail); })
+    .then(function (detail) {
+      state.akhirPekanAktif = detail; tampilkanDetailAkhirPekan(detail);
+      kartu.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    })
     .catch(function (e) { tampilkanPesan('error', e.message); });
 }
 

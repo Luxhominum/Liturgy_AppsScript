@@ -1915,7 +1915,25 @@ function ambilAkhirPekanDalamRentang_(tglAwal, tglAkhir) {
       return LayananKonflik.hitungProgresDariDaftar(penugasanSesiIni, daftarPeran);
     });
     var semuaTerpenuhi = sesiList.length > 0 && progresSemuaSesi.every(function (p) { return p.every(function (r) { return r.status === 'TERPENUHI'; }); });
-    return { weekendId: w.weekend_id, tanggalAcuan: w.tanggal_acuan, status: w.status, revisi: w.revisi, jumlahSesi: sesiList.length, semuaTerpenuhi: semuaTerpenuhi };
+    return {
+      weekendId: w.weekend_id,
+      tanggalAcuan: w.tanggal_acuan,
+      status: w.status,
+      revisi: w.revisi,
+      jumlahSesi: sesiList.length,
+      semuaTerpenuhi: semuaTerpenuhi,
+      // Ringkasan sesi dipakai kalender mingguan. Data ini berasal dari
+      // pembacaan Sessions yang memang sudah dilakukan di atas, sehingga
+      // tidak menambah round-trip atau pembacaan spreadsheet baru.
+      sesiList: sesiList.map(function (s) {
+        return {
+          sessionId: s.session_id,
+          jenisSesi: s.jenis_sesi,
+          labelSesi: s.nama_khusus || KONFIG.LABEL_SESI[s.jenis_sesi] || s.jenis_sesi,
+          tanggalSesi: s.tanggal_sesi
+        };
+      })
+    };
   });
 }
 

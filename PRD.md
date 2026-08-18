@@ -118,8 +118,9 @@ Semua pengecekan "dobel/berturut-turut" di atas beroperasi pada **cakupan satu a
 ## 6. Fitur (per tab di aplikasi)
 
 ### 6.1 Kalender
-- Buka/buat akhir pekan: pilih tanggal Minggu, **centang sesi mana saja yang ada** (Sabtu Sore/Minggu Pagi/Minggu Sore — tidak dipaksa selalu 3), tambah sesi khusus kapan saja (nama + tanggal bebas, bisa diedit/dihapus selama belum ada penugasan)
-- Lihat kalender bulan berjalan, status tiap akhir pekan (Draft/Lengkap/Final)
+- Buka/buat akhir pekan dari modal: pilih tanggal Minggu, **centang sesi mana saja yang ada** (Sabtu Sore/Minggu Pagi/Minggu Sore — tidak dipaksa selalu 3), tambah sesi khusus kapan saja (nama + tanggal bebas, bisa diedit/dihapus selama belum ada penugasan)
+- Lihat kalender kerja mingguan (default) atau bulanan, status tiap akhir pekan (Draft/Lengkap/Final), mini-kalender desktop, dan agenda 3 hari di HP
+- Jam sesi pada kalender adalah posisi visual tetap (17.00/08.00/17.00; sesi khusus 12.00), bukan kolom data baru di `Sessions`
 - Detail akhir pekan: isi/hapus petugas individu per peran per sesi, isi/batalkan Koor & Tatib per sesi, isi/batalkan Hias Altar (tingkat akhir pekan)
 - Finalisasi (Admin only) — mengunci akhir pekan dari perubahan oleh Scheduler; Buka Kembali membatalkan finalisasi
 - Cetak Jadwal (langsung dari browser) dan Ekspor ke Sheet Jadwal (format Excel lama, idempotent — aman diekspor ulang)

@@ -2,7 +2,7 @@
 
 Dokumen ini menjelaskan bahasa visual `index.html`. Baca dulu sebelum mengubah tampilan apapun — tujuannya supaya perubahan berikutnya tetap konsisten, bukan mengumpulkan gaya yang berbeda-beda tiap kali disentuh.
 
-**Prinsip nomor satu: jangan sentuh JS.** Semua `id="..."` dan class yang dipakai `getElementById`/`classList`/`querySelectorAll` di dalam `<script>` harus tetap ada persis sama. Redesain sejauh ini SELALU dikerjakan sebagai perubahan `<style>` + struktur HTML statis saja (header, nav, wrapper section) — logika JS yang membangun konten dinamis (kartu sesi, modal, tabel) tidak pernah diubah. Kalau mau redesain ulang, pertahankan disiplin ini.
+**Prinsip nomor satu: jaga kontrak UI dan logika.** Semua `id="..."` dan class yang dipakai `getElementById`/`classList`/`querySelectorAll` harus tetap sinkron dengan `<script>`. Perubahan visual murni tidak perlu menyentuh JS; perubahan interaksi boleh mengubah JS asalkan seluruh pemanggil, izin, loading state, dan pengujian perilakunya ikut diperbarui.
 
 ---
 
@@ -13,7 +13,7 @@ Dokumen ini menjelaskan bahasa visual `index.html`. Baca dulu sebelum mengubah t
 Sumber inspirasi: dunia liturgi itu sendiri — kertas misa/buletin paroki, kayu mimbar, warna liturgi (hijau = masa biasa, paling sering dipakai sepanjang tahun; merah/marun = liturgi merah), kuningan lilin altar. **Sengaja dihindari**: kombinasi krem+terracotta generik yang jadi default banyak AI design tool.
 
 **Elemen ciri khas (dipakai secukupnya, TIDAK di semua tempat):**
-- Sel kalender (`.sel-kalender`) berbentuk lengkung di bagian atas — meniru jendela/pintu gereja (`border-radius: 40px 40px 10px 10px`)
+- Kalender kerja memakai sidebar mini-bulan dan grid waktu mingguan; warna sesi tetap mengambil palet liturgi yang sama
 - Garis emas tipis di bawah header (masthead), seperti garis pembatas di buletin paroki cetak
 - Ikon kecil (emoji Unicode, bukan icon font/SVG library) di depan tiap tab navigasi, lewat CSS `::before` — BUKAN elemen HTML nested (lihat bagian 4 kenapa ini penting)
 
@@ -88,10 +88,10 @@ Border `--garis`, fokus jadi ring `--emas-terang` + border `--emas`. Checkbox/ra
 
 ## 5. Responsif
 
-Satu breakpoint: `@media (max-width: 600px)`.
+Breakpoint kalender: `@media (max-width: 760px)` agar panel browser sempit dan tablet kecil memakai agenda ringkas, termasuk HP 390px.
 
 - Padding kartu & main dikurangi
-- Baris navigasi bulan (`.nav-bulan`) dipaksa tetap satu baris (`flex-wrap: nowrap`) dengan label tombol dipendekkan lewat `.teks-nav-bulan { display: none; }` — di desktop tulisan lengkap "« Bulan Sebelumnya", di HP jadi "« Sebelumnya" saja
+- Kalender mingguan berubah menjadi agenda 3 hari; sidebar mini-bulan dan grid waktu desktop disembunyikan agar tidak memaksa scroll horizontal
 - Nav tab bisa di-scroll horizontal (`overflow-x: auto`) kalau tidak muat, scrollbar disembunyikan tapi tetap bisa discroll (swipe di HP)
 
 **Kalau nambah komponen baru yang berpotensi sempit di HP:** selalu cek dulu di lebar 390px (ukuran HP umum) sebelum dianggap selesai, bukan cuma di desktop.
@@ -114,3 +114,13 @@ Cara ini berhasil menemukan 2 bug nyata sebelum dikirim ke pengguna (teks tombol
 - Jangan ganti struktur "satu file `index.html`" jadi multi-file/framework (React, dll) — ini keputusan sadar demi kemudahan deploy tempel-langsung di Apps Script (lihat `PRD.md` bagian 7.1)
 - Jangan hapus/ganti nama `id`/class yang dipakai JS tanpa update semua pemanggilnya di `<script>` sekaligus
 - Jangan tambah dependency eksternal baru (icon library, CSS framework) — palet warna & tipografi saat ini sudah cukup, dan setiap dependency baru menambah risiko gagal-muat kalau offline/koneksi lambat (relawan paroki, bukan tim IT, jadi harus tahan-banting)
+
+---
+
+## 8. Kalender kerja
+
+- Tampilan awal adalah grid minggu dengan kontrol Hari ini, sebelumnya/berikutnya, dan pilihan Minggu/Bulan.
+- Tombol Buat Jadwal atau slot kosong membuka modal tanggal Minggu + pilihan sesi; form tidak lagi selalu memenuhi bagian atas halaman.
+- `Sessions` tetap memakai skema lama tanpa kolom jam. Posisi visual tetap: Sabtu Sore 17.00, Minggu Pagi 08.00, Minggu Sore 17.00, sesi khusus 12.00.
+- Jam tersebut hanya metadata presentasi di client dan tidak boleh diperlakukan sebagai waktu misa faktual tanpa keputusan produk baru.
+- Klik acara membuka panel detail akhir pekan yang sudah ada, termasuk penugasan, finalisasi, cetak, dan ekspor.
