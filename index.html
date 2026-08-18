@@ -159,6 +159,10 @@
   .modal-latar.tampil { display: flex; }
   .modal-kotak { background: var(--kertas-kartu); border-radius: 14px; padding: 20px; width: 100%; max-width: 420px; max-height: 85vh; overflow-y: auto; box-shadow: var(--bayang-modal); }
   .modal-kotak h2 { font-size: 16px; }
+  .ringkasan-pilihan { background: #E4EEE0; border: 1px solid #C3D9BA; color: var(--hijau-tua); border-radius: 8px; padding: 8px 10px; font-size: 13px; margin-bottom: 10px; }
+  .opsi-kandidat { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; width: 100%; }
+  .opsi-kandidat input { flex: 0 0 auto; margin-top: 3px; }
+  .opsi-kandidat span { flex: 1; }
 
   .memuat { text-align: center; color: var(--abu-hangat); padding: 24px; font-size: 13px; }
   .memuat::before { content: "\2726  "; }
@@ -316,9 +320,12 @@
   <div class="modal-kotak">
     <h2 id="judulModalKandidat" style="font-size:15px;">Pilih Petugas</h2>
     <input type="text" id="cariKandidatModal" placeholder="Cari nama..." style="width:100%; margin-bottom:10px;">
+    <div id="ringkasanPilihanKandidat" class="ringkasan-pilihan sembunyi"></div>
+    <div id="pesanKandidatModal"></div>
     <div id="daftarKandidatModal" style="max-height:300px; overflow-y:auto;"></div>
     <div class="baris" style="margin-top:12px; justify-content:flex-end;">
-      <button class="sekunder" onclick="tutupModal('modalKandidat')">Tutup</button>
+      <button class="sekunder" onclick="tutupModalKandidat()">Tutup</button>
+      <button id="btnSimpanKandidat" class="sembunyi" onclick="simpanPilihanKandidat(this)" disabled>Simpan Pilihan (0)</button>
     </div>
   </div>
 </div>
@@ -347,7 +354,10 @@ var state = {
   pelakuId: '', peran: '', wilayahList: [], lingkunganList: [], peranList: [],
   kandidatList: [], // snapshot kandidat + role eligibility, dipakai modal tanpa request server
   kandidatDimuat: false, kandidatSedangDimuat: null,
+  kandidatTerpilih: {}, batasPilihanKandidat: 0, modeModalKandidat: 'INDIVIDU',
   semuaOrangCache: null, dataWilayahLingkunganCache: null, dataPetugasSedangDimuat: null,
+  aturanCache: null, aturanSedangDimuat: null,
+  auditItems: [], auditOffset: 0, auditHasMore: true, auditSedangDimuat: null,
   bulanTampil: new Date(), akhirPekanAktif: null,
   aksiPeringatanTertunda: null // dipakai modal peringatan untuk menyimpan aksi yang mau dijalankan ulang
 };
@@ -380,12 +390,26 @@ function bukaModal(id) { document.getElementById(id).classList.add('tampil'); }
 function panggilServer(namaFungsi) {
   var argumen = Array.prototype.slice.call(arguments, 1);
   return new Promise(function (resolve, reject) {
+    var selesai = false;
+    var batasWaktu = setTimeout(function () {
+      if (selesai) return;
+      selesai = true;
+      reject(new Error('Server belum merespons setelah 45 detik. Muat ulang dan periksa data sebelum mencoba menyimpan lagi.'));
+    }, 45000);
+    function berhasil(hasil) {
+      if (selesai) return;
+      selesai = true; clearTimeout(batasWaktu);
+      if (!hasil || !hasil.ok) { reject(new Error((hasil && hasil.pesan) || 'Terjadi kesalahan.')); return; }
+      resolve(hasil.data);
+    }
+    function gagal(err) {
+      if (selesai) return;
+      selesai = true; clearTimeout(batasWaktu);
+      reject(new Error((err && err.message) || String(err)));
+    }
     google.script.run
-      .withSuccessHandler(function (hasil) {
-        if (!hasil.ok) { reject(new Error(hasil.pesan || 'Terjadi kesalahan.')); return; }
-        resolve(hasil.data);
-      })
-      .withFailureHandler(function (err) { reject(new Error(err.message || String(err))); })
+      .withSuccessHandler(berhasil)
+      .withFailureHandler(gagal)
       [namaFungsi].apply(null, argumen);
   });
 }
@@ -399,7 +423,7 @@ function panggilServer(namaFungsi) {
 function jalankanDenganTombolSibuk_(elemenTombol, teksSementara, fnPromise) {
   var teksAsli = elemenTombol ? elemenTombol.textContent : null;
   if (elemenTombol) { elemenTombol.disabled = true; elemenTombol.textContent = teksSementara; }
-  return fnPromise().finally(function () {
+  return Promise.resolve().then(fnPromise).finally(function () {
     if (elemenTombol) { elemenTombol.disabled = false; elemenTombol.textContent = teksAsli; }
   });
 }
@@ -416,8 +440,8 @@ document.getElementById('navigasi').addEventListener('click', function (e) {
     document.getElementById('tab' + kapital(t)).classList.toggle('sembunyi', t !== tab);
   });
   if (tab === 'petugas') muatDataKelolaPetugas().catch(function () {});
-  if (tab === 'aturan') muatDaftarAturan();
-  if (tab === 'audit') muatDaftarAudit();
+  if (tab === 'aturan') muatDaftarAturan().catch(function () {});
+  if (tab === 'audit') muatDaftarAudit().catch(function () {});
   if (tab === 'pengguna') muatDaftarPengguna();
 });
 function kapital(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -706,14 +730,44 @@ function prosesHasilTransaksi(hasil, kalauBerhasil) {
 }
 
 // --- Modal pilih kandidat individu ---
+function aturModeModalKandidat_(mode) {
+  state.modeModalKandidat = mode;
+  var individu = mode === 'INDIVIDU';
+  document.getElementById('ringkasanPilihanKandidat').classList.toggle('sembunyi', !individu);
+  document.getElementById('btnSimpanKandidat').classList.toggle('sembunyi', !individu);
+  document.getElementById('cariKandidatModal').classList.toggle('sembunyi', !individu);
+  document.getElementById('pesanKandidatModal').innerHTML = '';
+}
+
+function tutupModalKandidat() {
+  state.kandidatTerpilih = {};
+  state.aksiPeringatanTertunda = null;
+  tutupModal('modalKandidat');
+}
+
 function bukaPilihKandidat(sessionId, roleId, namaPeran, weekendId) {
+  aturModeModalKandidat_('INDIVIDU');
   document.getElementById('judulModalKandidat').textContent = 'Pilih ' + namaPeran;
-  document.getElementById('cariKandidatModal').classList.remove('sembunyi');
   document.getElementById('cariKandidatModal').value = '';
-  state.konteksPilihKandidat = { sessionId: sessionId, roleId: roleId, weekendId: weekendId };
+
+  var detail = state.akhirPekanAktif;
+  var sesi = detail && detail.sesiList.filter(function (s) { return s.sessionId === sessionId; })[0];
+  var peran = detail && detail.peranList.filter(function (r) { return r.roleId === roleId; })[0];
+  var sudahTerisi = sesi ? sesi.penugasanIndividu.filter(function (a) { return a.roleId === roleId; }).length : 0;
+  var kapasitas = peran ? (Number(peran.jumlahMaksimal) || Number(peran.jumlahDibutuhkan) || 1) : 1;
+  var sisa = Math.max(0, kapasitas - sudahTerisi);
+
+  state.kandidatTerpilih = {};
+  state.batasPilihanKandidat = sisa;
+  state.konteksPilihKandidat = { sessionId: sessionId, roleId: roleId, weekendId: weekendId, sisa: sisa };
+  perbaruiRingkasanPilihanKandidat_();
 
   document.getElementById('daftarKandidatModal').innerHTML = '<div class="memuat">Memuat kandidat...</div>';
   bukaModal('modalKandidat');
+  if (sisa === 0) {
+    document.getElementById('daftarKandidatModal').innerHTML = '<div class="pesan-peringatan">Kuota peran ini sudah penuh.</div>';
+    return;
+  }
   pastikanCacheKandidat_()
     .then(function () { muatDaftarKandidatModal(''); })
     .catch(function (e) { document.getElementById('daftarKandidatModal').innerHTML = '<div class="pesan-error">' + escapeHtml(e.message) + '</div>'; });
@@ -727,15 +781,27 @@ function muatDaftarKandidatModal(kataKunci) {
   var ctx = state.konteksPilihKandidat;
   var el = document.getElementById('daftarKandidatModal');
   var q = (kataKunci || '').toString().trim().toLowerCase();
+  var sudahDiPeranIni = {};
+  var detail = state.akhirPekanAktif;
+  var sesi = detail && detail.sesiList.filter(function (s) { return s.sessionId === ctx.sessionId; })[0];
+  if (sesi) {
+    sesi.penugasanIndividu.forEach(function (a) {
+      if (a.roleId === ctx.roleId) sudahDiPeranIni[a.personId] = true;
+    });
+  }
 
   var daftar = (state.kandidatList || []).filter(function (p) {
     if (!p.aktif) return false;
     if (!p.roleIds || p.roleIds.indexOf(ctx.roleId) === -1) return false;
+    if (sudahDiPeranIni[p.personId]) return false;
     if (q && (!p.nama || p.nama.toLowerCase().indexOf(q) === -1)) return false;
     return true;
   });
 
   daftar.sort(function (a, b) {
+    var waktuA = a.terakhirBertugas ? new Date(a.terakhirBertugas).getTime() : 0;
+    var waktuB = b.terakhirBertugas ? new Date(b.terakhirBertugas).getTime() : 0;
+    if (waktuA !== waktuB) return waktuA - waktuB;
     return (a.nama || '').localeCompare(b.nama || '', 'id');
   });
 
@@ -745,10 +811,39 @@ function muatDaftarKandidatModal(kataKunci) {
   }
 
   el.innerHTML = daftar.map(function (p) {
-    return '<div class="baris-peran"><span>' + escapeHtml(p.nama) +
-      '<br><span class="kecil">Terakhir bertugas: ' + (p.terakhirBertugas ? formatTanggal(p.terakhirBertugas) : 'belum pernah') + '</span></span>' +
-      '<button onclick="pilihKandidat(\'' + p.personId + '\', this)">Pilih</button></div>';
+    var dicentang = !!state.kandidatTerpilih[p.personId];
+    return '<div class="baris-peran"><label class="opsi-kandidat">' +
+      '<input type="checkbox" data-kandidat="1" value="' + escapeHtml(p.personId) + '" onchange="ubahPilihanKandidat(this)"' + (dicentang ? ' checked' : '') + '>' +
+      '<span>' + escapeHtml(p.nama) + '<br><span class="kecil">Terakhir bertugas: ' +
+      (p.terakhirBertugas ? formatTanggal(p.terakhirBertugas) : 'belum pernah') + '</span></span></label></div>';
   }).join('');
+  perbaruiRingkasanPilihanKandidat_();
+}
+
+function ubahPilihanKandidat(elemen) {
+  var personId = elemen.value;
+  var jumlahSekarang = Object.keys(state.kandidatTerpilih).length;
+  if (elemen.checked && jumlahSekarang >= state.batasPilihanKandidat) {
+    elemen.checked = false;
+    document.getElementById('pesanKandidatModal').innerHTML = '<div class="pesan-peringatan">Pilihan sudah mencapai sisa kuota.</div>';
+    return;
+  }
+  if (elemen.checked) state.kandidatTerpilih[personId] = true;
+  else delete state.kandidatTerpilih[personId];
+  document.getElementById('pesanKandidatModal').innerHTML = '';
+  perbaruiRingkasanPilihanKandidat_();
+}
+
+function perbaruiRingkasanPilihanKandidat_() {
+  var jumlah = Object.keys(state.kandidatTerpilih || {}).length;
+  var batas = Number(state.batasPilihanKandidat) || 0;
+  document.getElementById('ringkasanPilihanKandidat').textContent = 'Terpilih ' + jumlah + ' dari maksimal ' + batas + ' orang';
+  var tombol = document.getElementById('btnSimpanKandidat');
+  tombol.textContent = 'Simpan Pilihan (' + jumlah + ')';
+  tombol.disabled = jumlah === 0;
+  document.querySelectorAll('#daftarKandidatModal input[data-kandidat="1"]').forEach(function (input) {
+    input.disabled = jumlah >= batas && !input.checked;
+  });
 }
 
 /**
@@ -770,39 +865,45 @@ function pastikanCacheKandidat_() {
   return muatUlangCacheKandidat();
 }
 
-function pilihKandidat(personId, elemenTombol) {
+function tandaiKandidatSudahBertugas_(personIds) {
+  var sekarang = new Date().toISOString();
+  (state.kandidatList || []).forEach(function (kandidat) {
+    if (personIds.indexOf(kandidat.personId) !== -1) kandidat.terakhirBertugas = sekarang;
+  });
+}
+
+function simpanPilihanKandidat(elemenTombol) {
   var ctx = state.konteksPilihKandidat;
   var d = state.akhirPekanAktif;
+  var personIds = Object.keys(state.kandidatTerpilih || {});
+  if (personIds.length === 0) return;
   var jalankan = function (konfirmasiPeringatan, alasanOverride) {
-    return panggilServer('api_tugaskanIndividu', {
-      weekendId: ctx.weekendId, sessionId: ctx.sessionId, personId: personId, roleId: ctx.roleId,
+    return panggilServer('api_tugaskanIndividuBatch', {
+      weekendId: ctx.weekendId, sessionId: ctx.sessionId, personIds: personIds, roleId: ctx.roleId,
       revisiYangDiharapkan: d.revisi, konfirmasiPeringatan: konfirmasiPeringatan, alasanOverride: alasanOverride
     });
   };
   state.aksiPeringatanTertunda = jalankan;
-  // Nonaktifkan SEMUA tombol "Pilih" di modal ini begitu salah satu diklik,
-  // supaya tidak bisa terklik dobel selagi menunggu, dan langsung kelihatan
-  // sedang diproses (bukan diam).
-  var semuaTombolPilih = document.querySelectorAll('#daftarKandidatModal button');
-  semuaTombolPilih.forEach(function (b) { b.disabled = true; });
-  if (elemenTombol) elemenTombol.textContent = 'Memproses...';
-
-  jalankan(false, '').then(function (hasil) {
-    tutupModal('modalKandidat');
-    prosesHasilTransaksi(hasil, function () {
-      var kandidat = (state.kandidatList || []).filter(function (p) { return p.personId === personId; })[0];
-      if (kandidat) kandidat.terakhirBertugas = new Date().toISOString();
-      bukaDetailAkhirPekan(ctx.weekendId);
+  return jalankanDenganTombolSibuk_(elemenTombol, 'Menyimpan...', function () {
+    return jalankan(false, '').then(function (hasil) {
+      if (hasil.berhasil) {
+        tandaiKandidatSudahBertugas_(personIds);
+        tutupModalKandidat();
+      } else if (hasil.alasan === 'DIBLOKIR') {
+        document.getElementById('pesanKandidatModal').innerHTML = '<div class="pesan-error">' +
+          escapeHtml((hasil.blokir || []).map(function (b) { return b.pesan; }).join(' | ')) + '</div>';
+        return;
+      }
+      prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(ctx.weekendId); });
+    }).catch(function (e) {
+      document.getElementById('pesanKandidatModal').innerHTML = '<div class="pesan-error">' + escapeHtml(e.message) + '</div>';
     });
-  }).catch(function (e) {
-    tampilkanPesan('error', e.message);
-    semuaTombolPilih.forEach(function (b) { b.disabled = false; });
-    if (elemenTombol) elemenTombol.textContent = 'Pilih';
   });
 }
 
 // --- Modal pilih Wilayah untuk penugasan komunitas ---
 function bukaPilihWilayahKomunitas(sessionId, jenis, label, weekendId) {
+  aturModeModalKandidat_('KOMUNITAS');
   document.getElementById('judulModalKandidat').textContent = 'Pilih Wilayah untuk ' + label;
   document.getElementById('cariKandidatModal').value = '';
   var el = document.getElementById('daftarKandidatModal');
@@ -830,16 +931,25 @@ function pilihWilayahKomunitas(wilayahId, sessionId, jenis, weekendId) {
 
 document.getElementById('btnLanjutkanMeskiPeringatan').addEventListener('click', function () {
   var alasan = document.getElementById('alasanOverrideModal').value;
+  var tombol = this;
   if (state.aksiPeringatanTertunda) {
-    state.aksiPeringatanTertunda(true, alasan).then(function (hasil) {
-      tutupModal('modalPeringatan');
-      prosesHasilTransaksi(hasil, function () { if (state.akhirPekanAktif) bukaDetailAkhirPekan(state.akhirPekanAktif.weekendId); });
-    }).catch(function (e) { tampilkanPesan('error', e.message); });
+    jalankanDenganTombolSibuk_(tombol, 'Menyimpan...', function () {
+      return state.aksiPeringatanTertunda(true, alasan).then(function (hasil) {
+        if (hasil.berhasil) {
+          tandaiKandidatSudahBertugas_(Object.keys(state.kandidatTerpilih || {}));
+          tutupModal('modalPeringatan');
+          tutupModal('modalKandidat');
+          state.aksiPeringatanTertunda = null;
+        }
+        prosesHasilTransaksi(hasil, function () { if (state.akhirPekanAktif) bukaDetailAkhirPekan(state.akhirPekanAktif.weekendId); });
+      }).catch(function (e) { tampilkanPesan('error', e.message); });
+    });
   }
 });
 
 // --- Modal pilih Lingkungan untuk Tatib ---
 function bukaPilihLingkunganTatib(sessionId, weekendId) {
+  aturModeModalKandidat_('KOMUNITAS');
   document.getElementById('judulModalKandidat').textContent = 'Pilih Lingkungan untuk Tatib';
   document.getElementById('cariKandidatModal').value = '';
   var el = document.getElementById('daftarKandidatModal');
@@ -1091,6 +1201,7 @@ function bukaKelolaPeranOrang(personId) {
   var orang = (state.semuaOrangCache || []).filter(function (p) { return p.personId === personId; })[0];
   if (!orang) { tampilkanPesan('error', 'Data orang ini tidak ditemukan, coba muat ulang daftar petugas.'); return; }
 
+  aturModeModalKandidat_('KELOLA_PERAN');
   document.getElementById('judulModalKandidat').textContent = 'Kelola Peran — ' + orang.nama;
   document.getElementById('cariKandidatModal').classList.add('sembunyi');
   state.personIdSedangDikelola = personId;
@@ -1136,47 +1247,105 @@ function cabutPeranOrang(personRoleId, elemenTombol) {
 // ====================================================================
 // TAB PENGATURAN ATURAN
 // ====================================================================
-function muatDaftarAturan() {
-  document.getElementById('daftarAturan').innerHTML = '<div class="memuat">Memuat...</div>';
-  panggilServer('api_ambilSemuaAturan').then(function (daftar) {
-    var labelTingkat = { BLOCK: 'WAJIB', WARNING: 'PERINGATAN', AUTO: 'OTOMATIS' };
-    var html = '<table><tr><th>Kode</th><th>Nama Aturan</th><th>Tingkat</th><th>Status</th><th>Versi Kebijakan</th><th></th></tr>';
-    daftar.forEach(function (a) {
-      html += '<tr><td>' + a.rule_id + '</td><td>' + escapeHtml(a.nama_aturan) + '</td><td>' + labelTingkat[a.tingkat] + '</td>';
-      html += '<td>' + (a.aktif ? 'Aktif' : 'Nonaktif') + '</td><td>' + a.versi_kebijakan + '</td><td>';
-      if (a.tingkat !== 'BLOCK') {
-        html += '<button class="tautan" onclick="ubahStatusAturan(\'' + a.rule_id + '\',' + (!a.aktif) + ')">' + (a.aktif ? 'matikan' : 'aktifkan') + '</button>';
-      } else {
-        html += '<span class="kecil">tidak bisa dimatikan</span>';
-      }
-      html += '</td></tr>';
-    });
-    html += '</table>';
-    document.getElementById('daftarAturan').innerHTML = html;
-  }).catch(function (e) { tampilkanPesan('error', e.message); });
+function tampilkanDaftarAturan_(daftar) {
+  var labelTingkat = { BLOCK: 'WAJIB', WARNING: 'PERINGATAN', AUTO: 'OTOMATIS' };
+  var html = '<div style="overflow-x:auto;"><table><tr><th>Kode</th><th>Nama Aturan</th><th>Tingkat</th><th>Status</th><th>Versi Kebijakan</th><th></th></tr>';
+  daftar.forEach(function (a) {
+    html += '<tr><td>' + escapeHtml(a.rule_id) + '</td><td>' + escapeHtml(a.nama_aturan) + '</td><td>' + escapeHtml(labelTingkat[a.tingkat] || a.tingkat) + '</td>';
+    html += '<td>' + (a.aktif ? 'Aktif' : 'Nonaktif') + '</td><td>' + escapeHtml(a.versi_kebijakan) + '</td><td>';
+    if (a.tingkat !== 'BLOCK') {
+      html += '<button class="tautan" onclick="ubahStatusAturan(\'' + a.rule_id + '\',' + (!a.aktif) + ',this)">' + (a.aktif ? 'matikan' : 'aktifkan') + '</button>';
+    } else {
+      html += '<span class="kecil">tidak bisa dimatikan</span>';
+    }
+    html += '</td></tr>';
+  });
+  html += '</table></div><div style="margin-top:10px;"><button class="sekunder" onclick="muatDaftarAturan(true)">Segarkan</button></div>';
+  document.getElementById('daftarAturan').innerHTML = html;
 }
-function ubahStatusAturan(ruleId, aktifBaru) {
-  panggilServer('api_perbaruiAturan', ruleId, { aktif: aktifBaru }).then(function () {
-    tampilkanPesan('sukses', 'Pengaturan aturan diperbarui.'); muatDaftarAturan();
-  }).catch(function (e) { tampilkanPesan('error', e.message); });
+
+function muatDaftarAturan(paksaMuatUlang) {
+  if (!paksaMuatUlang && state.aturanCache) {
+    tampilkanDaftarAturan_(state.aturanCache);
+    return Promise.resolve(state.aturanCache);
+  }
+  if (state.aturanSedangDimuat) return state.aturanSedangDimuat;
+  document.getElementById('daftarAturan').innerHTML = '<div class="memuat">Memuat...</div>';
+  state.aturanSedangDimuat = panggilServer('api_ambilSemuaAturan').then(function (daftar) {
+    state.aturanCache = daftar || [];
+    tampilkanDaftarAturan_(state.aturanCache);
+    return state.aturanCache;
+  }).catch(function (e) {
+    document.getElementById('daftarAturan').innerHTML = '<div class="pesan-error">' + escapeHtml(e.message) + '</div>' +
+      '<button class="sekunder" onclick="muatDaftarAturan(true)">Coba Lagi</button>';
+    return null;
+  }).finally(function () { state.aturanSedangDimuat = null; });
+  return state.aturanSedangDimuat;
+}
+
+function ubahStatusAturan(ruleId, aktifBaru, elemenTombol) {
+  jalankanDenganTombolSibuk_(elemenTombol, 'Menyimpan...', function () {
+    return panggilServer('api_perbaruiAturan', ruleId, { aktif: aktifBaru }).then(function () {
+      state.aturanCache = null;
+      tampilkanPesan('sukses', 'Pengaturan aturan diperbarui.');
+      return muatDaftarAturan(true);
+    }).catch(function (e) { tampilkanPesan('error', e.message); });
+  });
 }
 
 // ====================================================================
 // TAB AUDIT
 // ====================================================================
-function muatDaftarAudit() {
-  document.getElementById('daftarAudit').innerHTML = '<div class="memuat">Memuat...</div>';
-  panggilServer('api_ambilLogAudit').then(function (daftar) {
-    daftar.sort(function (a, b) { return new Date(b.waktu) - new Date(a.waktu); });
-    var html = '<table><tr><th>Waktu</th><th>Pelaku</th><th>Aksi</th><th>Jenis Data</th><th>Alasan Override</th></tr>';
-    daftar.slice(0, 200).forEach(function (a) {
-      html += '<tr><td>' + new Date(a.waktu).toLocaleString('id-ID') + '</td><td>' + escapeHtml(a.pelaku_id) + '</td>';
-      html += '<td>' + escapeHtml(a.aksi) + '</td><td>' + escapeHtml(a.jenis_entitas) + '</td><td>' + escapeHtml(a.alasan_override || '-') + '</td></tr>';
-    });
-    html += '</table>';
-    if (daftar.length === 200) html += '<p class="kecil">Menampilkan maksimal 200 catatan terbaru.</p>';
-    document.getElementById('daftarAudit').innerHTML = html;
-  }).catch(function (e) { tampilkanPesan('error', e.message); });
+function tampilkanDaftarAudit_() {
+  var daftar = state.auditItems || [];
+  var html = '<div style="overflow-x:auto;"><table><tr><th>Waktu</th><th>Pelaku</th><th>Aksi</th><th>Jenis Data</th><th>Alasan Override</th></tr>';
+  daftar.forEach(function (a) {
+    html += '<tr><td>' + escapeHtml(new Date(a.waktu).toLocaleString('id-ID')) + '</td><td>' + escapeHtml(a.pelaku_id) + '</td>';
+    html += '<td>' + escapeHtml(a.aksi) + '</td><td>' + escapeHtml(a.jenis_entitas) + '</td><td>' + escapeHtml(a.alasan_override || '-') + '</td></tr>';
+  });
+  html += '</table></div>';
+  if (daftar.length === 0) html += '<p class="kecil">Belum ada catatan audit.</p>';
+  html += '<div class="baris" style="margin-top:12px;">';
+  if (state.auditHasMore) html += '<button id="btnMuatAuditLagi" onclick="muatDaftarAudit(true,this)">Muat 50 Lebih Lama</button>';
+  html += '<button class="sekunder" onclick="muatDaftarAudit(false,null,true)">Segarkan</button>';
+  html += '<span class="kecil">' + daftar.length + ' catatan ditampilkan</span></div>';
+  document.getElementById('daftarAudit').innerHTML = html;
+}
+
+function muatDaftarAudit(muatLebihLama, elemenTombol, paksaMuatUlang) {
+  if (!muatLebihLama && !paksaMuatUlang && state.auditItems.length > 0) {
+    tampilkanDaftarAudit_();
+    return Promise.resolve(state.auditItems);
+  }
+  if (state.auditSedangDimuat) return state.auditSedangDimuat;
+  if (!muatLebihLama) {
+    state.auditItems = [];
+    state.auditOffset = 0;
+    state.auditHasMore = true;
+    document.getElementById('daftarAudit').innerHTML = '<div class="memuat">Memuat...</div>';
+  }
+
+  var teksAsli = elemenTombol ? elemenTombol.textContent : '';
+  if (elemenTombol) { elemenTombol.disabled = true; elemenTombol.textContent = 'Memuat...'; }
+  state.auditSedangDimuat = panggilServer('api_ambilLogAudit', 50, state.auditOffset).then(function (halaman) {
+    state.auditItems = state.auditItems.concat(halaman.items || []);
+    state.auditOffset = Number(halaman.nextOffset) || state.auditItems.length;
+    state.auditHasMore = !!halaman.hasMore;
+    tampilkanDaftarAudit_();
+    return state.auditItems;
+  }).catch(function (e) {
+    if (state.auditItems.length === 0) {
+      document.getElementById('daftarAudit').innerHTML = '<div class="pesan-error">' + escapeHtml(e.message) + '</div>' +
+        '<button class="sekunder" onclick="muatDaftarAudit(false,null,true)">Coba Lagi</button>';
+    } else {
+      tampilkanPesan('error', e.message);
+    }
+    return null;
+  }).finally(function () {
+    state.auditSedangDimuat = null;
+    if (elemenTombol && elemenTombol.isConnected) { elemenTombol.disabled = false; elemenTombol.textContent = teksAsli; }
+  });
+  return state.auditSedangDimuat;
 }
 
 // ====================================================================
