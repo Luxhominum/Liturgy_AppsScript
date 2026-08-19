@@ -40,6 +40,8 @@ var KONFIG = {
     SESI: 'Sessions',
     PENUGASAN: 'Assignments',
     PENUGASAN_KOMUNITAS: 'Community_Assignments',
+    STATISTIK_ORANG: 'Person_Stats',
+    RINGKASAN_SESI: 'Session_Summary',
     KONFIG_ATURAN: 'Rule_Config',
     LOG_AUDIT: 'Audit_Log',
     JADWAL: 'Jadwal',
@@ -59,6 +61,8 @@ var KONFIG = {
     Sessions: ['session_id', 'weekend_id', 'jenis_sesi', 'tanggal_sesi', 'status', 'nama_khusus'],
     Assignments: ['assignment_id', 'weekend_id', 'session_id', 'person_id', 'role_id', 'status', 'dibuat_pada', 'dibuat_oleh', 'diubah_pada', 'diubah_oleh'],
     Community_Assignments: ['community_assignment_id', 'weekend_id', 'session_id', 'jenis_penugasan', 'wilayah_id', 'lingkungan_id', 'alasan_override', 'dibuat_pada', 'dibuat_oleh', 'status'],
+    Person_Stats: ['person_id', 'last_assigned_at', 'assignment_count', 'updated_at'],
+    Session_Summary: ['summary_id', 'weekend_id', 'session_id', 'filled_count', 'required_count', 'all_complete', 'updated_at'],
     Rule_Config: ['rule_id', 'nama_aturan', 'aktif', 'tingkat', 'konfigurasi_json', 'versi_kebijakan', 'diubah_pada', 'diubah_oleh'],
     Audit_Log: ['audit_id', 'waktu', 'pelaku_id', 'aksi', 'jenis_entitas', 'entitas_id', 'nilai_lama_json', 'nilai_baru_json', 'rule_id', 'alasan_override', 'versi_kebijakan'],
     Jadwal: null, // sheet laporan, layout aslinya belum diperiksa — lihat catatan di ReportService di bawah
@@ -97,7 +101,7 @@ var KONFIG = {
   AWALAN_ID: {
     person_id: 'PER', wilayah_id: 'WIL', lingkungan_id: 'LKG', person_role_id: 'PRL',
     role_id: 'ROL', weekend_id: 'WKD', session_id: 'SES', assignment_id: 'ASG',
-    community_assignment_id: 'CAS', rule_id: 'RUL', audit_id: 'AUD'
+    community_assignment_id: 'CAS', summary_id: 'SUM', rule_id: 'RUL', audit_id: 'AUD'
   }
 };
 
@@ -118,6 +122,146 @@ var UtilId = (function () {
   return { idBaru: idBaru };
 })();
 
+// --- Telemetri ringan ke Cloud Logging (tidak menambah write ke Spreadsheet) ---
+var UtilPerforma = (function () {
+  var konteks_ = null;
+
+  function mulai(nama) {
+    konteks_ = { nama: nama || 'api', mulai: Date.now(), langkah: [] };
+    return konteks_;
+  }
+
+  function catat(nama, mulaiMs, metadata) {
+    var entri = Object.assign({ nama: nama, durasiMs: Date.now() - mulaiMs }, metadata || {});
+    if (konteks_) konteks_.langkah.push(entri);
+    console.log('[PERF_STEP] ' + JSON.stringify(entri));
+    return entri.durasiMs;
+  }
+
+  function selesai(metadata) {
+    if (!konteks_) return;
+    var hasil = Object.assign({
+      nama: konteks_.nama,
+      durasiTotalMs: Date.now() - konteks_.mulai,
+      langkah: konteks_.langkah
+    }, metadata || {});
+    console.log('[PERF_API] ' + JSON.stringify(hasil));
+    konteks_ = null;
+  }
+
+  return { mulai: mulai, catat: catat, selesai: selesai };
+})();
+
+// --- Cache lintas eksekusi untuk snapshot baca yang aman diulang ---
+var UtilCache = (function () {
+  var TTL_DEFAULT_DETIK = 600;
+  // Potongan 25 ribu karakter tetap aman di bawah batas 100 KB/key,
+  // termasuk bila nama mengandung karakter Unicode multi-byte.
+  var UKURAN_POTONGAN = 25000;
+  var AWALAN = 'liturgy:v1:';
+  var versiPending_ = {};
+  var readModelKotorPending_ = false;
+
+  function properti_() { return PropertiesService.getScriptProperties(); }
+  function cache_() { return CacheService.getScriptCache(); }
+
+  function versi(grup) {
+    if (versiPending_[grup]) return versiPending_[grup];
+    return properti_().getProperty('cache_version:' + grup) || '1';
+  }
+
+  function invalidasi(grup) {
+    versiPending_[grup] = String(Date.now()) + '-' + Math.floor(Math.random() * 100000);
+  }
+
+  function tandaiReadModelKotor() { readModelKotorPending_ = true; }
+  function bersihkanReadModelKotor() { readModelKotorPending_ = false; }
+
+  /** Seluruh invalidasi dalam satu API dikirim sebagai satu Properties call. */
+  function flushInvalidasi() {
+    var grupList = Object.keys(versiPending_);
+    if (grupList.length === 0 && !readModelKotorPending_) return;
+    var perubahan = {};
+    grupList.forEach(function (grup) { perubahan['cache_version:' + grup] = versiPending_[grup]; });
+    if (readModelKotorPending_) perubahan.performance_read_models_dirty = '1';
+    properti_().setProperties(perubahan, false);
+    versiPending_ = {};
+    readModelKotorPending_ = false;
+  }
+
+  function kunci_(grup, identitas) {
+    return AWALAN + grup + ':' + versi(grup) + ':' + String(identitas || 'default');
+  }
+
+  function ambilJson_(kunci) {
+    var c = cache_();
+    var metaMentah = c.get(kunci + ':meta');
+    if (!metaMentah) return null;
+    var meta;
+    try { meta = JSON.parse(metaMentah); } catch (e) { return null; }
+    if (!meta || !meta.jumlahPotongan) return null;
+    var daftarKunci = [];
+    for (var i = 0; i < meta.jumlahPotongan; i++) daftarKunci.push(kunci + ':p' + i);
+    var potongan = c.getAll(daftarKunci);
+    var json = '';
+    for (var p = 0; p < daftarKunci.length; p++) {
+      if (!Object.prototype.hasOwnProperty.call(potongan, daftarKunci[p])) return null;
+      json += potongan[daftarKunci[p]];
+    }
+    try { return JSON.parse(json); } catch (e2) { return null; }
+  }
+
+  function simpanJson_(kunci, nilai, ttlDetik) {
+    var json = JSON.stringify(buatAmanUntukClient_(nilai));
+    var jumlah = Math.max(1, Math.ceil(json.length / UKURAN_POTONGAN));
+    var semua = {};
+    semua[kunci + ':meta'] = JSON.stringify({ jumlahPotongan: jumlah });
+    for (var i = 0; i < jumlah; i++) semua[kunci + ':p' + i] = json.slice(i * UKURAN_POTONGAN, (i + 1) * UKURAN_POTONGAN);
+    cache_().putAll(semua, ttlDetik || TTL_DEFAULT_DETIK);
+  }
+
+  function ambilAtauHitung(grup, identitas, hitung, ttlDetik) {
+    var mulai = Date.now();
+    var kunci = kunci_(grup, identitas);
+    var cached = ambilJson_(kunci);
+    if (cached !== null) {
+      UtilPerforma.catat('cache_hit', mulai, { grup: grup, identitas: identitas });
+      return cached;
+    }
+    var hasil = hitung();
+    try { simpanJson_(kunci, hasil, ttlDetik); }
+    catch (e) { console.warn('[CACHE] gagal menyimpan ' + grup + '/' + identitas + ': ' + e.message); }
+    UtilPerforma.catat('cache_miss', mulai, { grup: grup, identitas: identitas });
+    return hasil;
+  }
+
+  function invalidasiUntukSheet(namaSheet) {
+    var master = [KONFIG.NAMA_SHEET.ORANG, KONFIG.NAMA_SHEET.WILAYAH, KONFIG.NAMA_SHEET.LINGKUNGAN, KONFIG.NAMA_SHEET.PERAN_ORANG, KONFIG.NAMA_SHEET.KONFIG_PERAN];
+    if (master.indexOf(namaSheet) !== -1) {
+      invalidasi('master');
+      invalidasi('candidates');
+    }
+    if ([KONFIG.NAMA_SHEET.PENUGASAN, KONFIG.NAMA_SHEET.SESI, KONFIG.NAMA_SHEET.KONFIG_PERAN].indexOf(namaSheet) !== -1) {
+      tandaiReadModelKotor();
+    }
+    if (namaSheet === KONFIG.NAMA_SHEET.PENUGASAN) {
+      invalidasi('schedule');
+      invalidasi('candidates');
+    }
+    if ([KONFIG.NAMA_SHEET.PENUGASAN_KOMUNITAS, KONFIG.NAMA_SHEET.AKHIR_PEKAN, KONFIG.NAMA_SHEET.SESI].indexOf(namaSheet) !== -1) {
+      invalidasi('schedule');
+    }
+    if (namaSheet === KONFIG.NAMA_SHEET.KONFIG_PERAN) invalidasi('schedule');
+    if (namaSheet === KONFIG.NAMA_SHEET.KONFIG_ATURAN) invalidasi('policy');
+  }
+
+  return {
+    versi: versi, invalidasi: invalidasi, flushInvalidasi: flushInvalidasi,
+    tandaiReadModelKotor: tandaiReadModelKotor, bersihkanReadModelKotor: bersihkanReadModelKotor,
+    invalidasiUntukSheet: invalidasiUntukSheet, ambilAtauHitung: ambilAtauHitung
+  };
+})();
+
 // --- Akses sheet berbasis NAMA KOLOM (bukan posisi kolom), supaya aman walau kolom dipindah manual ---
 var UtilSheet = (function () {
   // Cache hanya hidup selama SATU eksekusi Apps Script. Ini aman untuk
@@ -134,6 +278,7 @@ var UtilSheet = (function () {
 
   function invalidasiCacheSheet_(namaSheet) {
     delete cacheBarisEksekusi_[namaSheet];
+    UtilCache.invalidasiUntukSheet(namaSheet);
   }
 
   function ambilSheet(namaSheet) {
@@ -172,7 +317,7 @@ var UtilSheet = (function () {
     // ambilSemuaBaris() membutuhkan lebih banyak round-trip ke Google Sheets.
     var mulaiBaca = Date.now();
     var semuaNilai = sheet.getRange(1, 1, barisTerakhir, kolomTerakhir).getValues();
-    console.log('[PERF] baca ' + namaSheet + ': ' + (Date.now() - mulaiBaca) + ' ms; ' + (barisTerakhir - 1) + ' baris');
+    UtilPerforma.catat('sheet_read', mulaiBaca, { sheet: namaSheet, jumlahBaris: barisTerakhir - 1 });
     var hasil = ubahNilaiMenjadiBaris_(semuaNilai[0], semuaNilai.slice(1), 2);
     cacheBarisEksekusi_[namaSheet] = hasil;
     return hasil;
@@ -291,7 +436,9 @@ var UtilSheet = (function () {
     var nilai = skema.map(function (kolom) {
       return Object.prototype.hasOwnProperty.call(objekBaris, kolom) ? objekBaris[kolom] : '';
     });
+    var mulaiTulis = Date.now();
     sheet.appendRow(nilai);
+    UtilPerforma.catat('sheet_append', mulaiTulis, { sheet: namaSheet, jumlahBaris: 1 });
     invalidasiCacheSheet_(namaSheet);
     return objekBaris;
   }
@@ -308,7 +455,9 @@ var UtilSheet = (function () {
         return Object.prototype.hasOwnProperty.call(objekBaris, kolom) ? objekBaris[kolom] : '';
       });
     });
+    var mulaiTulis = Date.now();
     sheet.getRange(sheet.getLastRow() + 1, 1, nilai.length, skema.length).setValues(nilai);
+    UtilPerforma.catat('sheet_batch_append', mulaiTulis, { sheet: namaSheet, jumlahBaris: nilai.length });
     invalidasiCacheSheet_(namaSheet);
     return daftar;
   }
@@ -374,12 +523,16 @@ var UtilSheet = (function () {
     }
 
     if (bisaBatch) {
+      var mulaiTulis = Date.now();
       sheet.getRange(nomorBaris, indeksAwal, 1, nilaiRentang.length).setValues([nilaiRentang]);
+      UtilPerforma.catat('sheet_update', mulaiTulis, { sheet: namaSheet, jumlahKolom: nilaiRentang.length });
     } else {
+      var mulaiTulisFallback = Date.now();
       for (var k = 0; k < kunci.length; k++) {
         var namaKolom = kunci[k];
         sheet.getRange(nomorBaris, peta[namaKolom]).setValue(perubahan[namaKolom]);
       }
+      UtilPerforma.catat('sheet_update_fallback', mulaiTulisFallback, { sheet: namaSheet, jumlahKolom: kunci.length });
     }
     invalidasiCacheSheet_(namaSheet);
     return true;
@@ -400,12 +553,37 @@ var UtilSheet = (function () {
     return true;
   }
 
+  /** Mengganti isi sheet turunan dalam satu operasi batch utama. */
+  function gantiSemuaBaris(namaSheet, daftarObjekBaris) {
+    var sheet = ambilSheet(namaSheet);
+    var skema = KONFIG.SKEMA[namaSheet];
+    if (!skema) throw new Error('UtilSheet.gantiSemuaBaris: tidak ada skema untuk "' + namaSheet + '"');
+    var daftar = daftarObjekBaris || [];
+    var mulaiTulis = Date.now();
+    var barisTerakhir = sheet.getLastRow();
+    if (daftar.length > 0) {
+      var nilai = daftar.map(function (objekBaris) {
+        return skema.map(function (kolom) {
+          return Object.prototype.hasOwnProperty.call(objekBaris, kolom) ? objekBaris[kolom] : '';
+        });
+      });
+      sheet.getRange(2, 1, nilai.length, skema.length).setValues(nilai);
+    }
+    var jumlahLama = Math.max(0, barisTerakhir - 1);
+    if (jumlahLama > daftar.length) {
+      sheet.getRange(2 + daftar.length, 1, jumlahLama - daftar.length, Math.max(sheet.getLastColumn(), skema.length)).clearContent();
+    }
+    UtilPerforma.catat('sheet_replace_all', mulaiTulis, { sheet: namaSheet, jumlahBaris: daftar.length });
+    invalidasiCacheSheet_(namaSheet);
+    return daftar;
+  }
+
   return {
     ambilSpreadsheet: ambilSpreadsheet, ambilSheet: ambilSheet, ambilPetaHeader: ambilPetaHeader,
     ambilSemuaBaris: ambilSemuaBaris, ambilBarisTerakhir: ambilBarisTerakhir, ambilHalamanDariAkhir: ambilHalamanDariAkhir,
     cariBarisById: cariBarisById, tambahBaris: tambahBaris, tambahBanyakBaris: tambahBanyakBaris,
     perbaruiBarisById: perbaruiBarisById, perbaruiBarisPadaNomor: perbaruiBarisPadaNomor,
-    hapusBarisById: hapusBarisById
+    hapusBarisById: hapusBarisById, gantiSemuaBaris: gantiSemuaBaris
   };
 })();
 
@@ -414,9 +592,16 @@ var UtilKunci = (function () {
   var BATAS_WAKTU_MS = 10000;
   function denganKunciSkrip(fn, batasWaktuMs) {
     var lock = LockService.getScriptLock();
+    var mulaiTunggu = Date.now();
     var berhasil = lock.tryLock(batasWaktuMs || BATAS_WAKTU_MS);
+    UtilPerforma.catat('lock_wait', mulaiTunggu, { berhasil: berhasil });
     if (!berhasil) throw new Error('UtilKunci: gagal mendapatkan kunci — ada proses simpan lain yang sedang berjalan. Silakan coba lagi.');
-    try { return fn(); } finally { lock.releaseLock(); }
+    var mulaiKunci = Date.now();
+    try { return fn(); }
+    finally {
+      UtilPerforma.catat('lock_hold', mulaiKunci);
+      lock.releaseLock();
+    }
   }
   return { denganKunciSkrip: denganKunciSkrip };
 })();
@@ -442,6 +627,7 @@ function jalankanSetupAwal() {
   isiPeranDefault_();
   isiAturanBawaan_();
   isiPengaturanSistemDefault_();
+  UtilCache.flushInvalidasi();
   Logger.log('Setup awal selesai.');
 }
 
@@ -1004,6 +1190,169 @@ var RepoLogAudit = (function () {
 
   return { catat: catat, catatBanyak: catatBanyak, daftarByEntitas: daftarByEntitas, daftarSemua: daftarSemua, daftarTerbaru: daftarTerbaru, daftarHalaman: daftarHalaman };
 })();
+
+// --- Read model ringkas untuk kandidat dan kalender ---
+var LayananRingkasan = (function () {
+  var VERSI_INFRASTRUKTUR = '2';
+  var KUNCI_SIAP = 'performance_read_models_ready';
+  var KUNCI_KOTOR = 'performance_read_models_dirty';
+
+  function buatStatistikOrang_(daftarPenugasan) {
+    var peta = {};
+    (daftarPenugasan || []).forEach(function (a) {
+      if (a.status !== KONFIG.STATUS_PENUGASAN.AKTIF) return;
+      if (!peta[a.person_id]) peta[a.person_id] = { person_id: a.person_id, last_assigned_at: '', assignment_count: 0, updated_at: new Date() };
+      var stat = peta[a.person_id];
+      stat.assignment_count++;
+      if (!stat.last_assigned_at || new Date(a.dibuat_pada) > new Date(stat.last_assigned_at)) stat.last_assigned_at = a.dibuat_pada;
+    });
+    return Object.keys(peta).map(function (id) { return peta[id]; });
+  }
+
+  function buatRingkasanSesi_(sesi, daftarPenugasan, daftarPeran) {
+    var penugasanSesi = (daftarPenugasan || []).filter(function (a) {
+      return a.status === KONFIG.STATUS_PENUGASAN.AKTIF && a.session_id === sesi.session_id;
+    });
+    var progres = LayananKonflik.hitungProgresDariDaftar(penugasanSesi, daftarPeran);
+    var jumlahDibutuhkan = progres.reduce(function (jumlah, p) { return jumlah + (Number(p.dibutuhkan) || 0); }, 0);
+    return {
+      summary_id: 'SUM-' + sesi.session_id,
+      weekend_id: sesi.weekend_id,
+      session_id: sesi.session_id,
+      filled_count: penugasanSesi.length,
+      required_count: jumlahDibutuhkan,
+      all_complete: progres.length > 0 && progres.every(function (p) { return p.status === 'TERPENUHI'; }),
+      updated_at: new Date()
+    };
+  }
+
+  function bangunUlang_() {
+    var mulai = Date.now();
+    var semuaPenugasan = UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.PENUGASAN);
+    var semuaSesi = UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.SESI);
+    var daftarPeran = RepoKonfigPeran.daftarUrut();
+    UtilSheet.gantiSemuaBaris(KONFIG.NAMA_SHEET.STATISTIK_ORANG, buatStatistikOrang_(semuaPenugasan));
+    UtilSheet.gantiSemuaBaris(KONFIG.NAMA_SHEET.RINGKASAN_SESI, semuaSesi.map(function (sesi) {
+      return buatRingkasanSesi_(sesi, semuaPenugasan, daftarPeran);
+    }));
+    PropertiesService.getScriptProperties().setProperty(KUNCI_SIAP, VERSI_INFRASTRUKTUR);
+    PropertiesService.getScriptProperties().deleteProperty(KUNCI_KOTOR);
+    UtilCache.bersihkanReadModelKotor();
+    UtilCache.invalidasi('candidates');
+    UtilCache.invalidasi('schedule');
+    UtilPerforma.catat('read_models_backfill', mulai, { jumlahSesi: semuaSesi.length, jumlahPenugasan: semuaPenugasan.length });
+  }
+
+  function pastikanInfrastruktur() {
+    var props = PropertiesService.getScriptProperties();
+    if (props.getProperty(KUNCI_SIAP) === VERSI_INFRASTRUKTUR && props.getProperty(KUNCI_KOTOR) !== '1') return false;
+    var ss = UtilSheet.ambilSpreadsheet();
+    pastikanSheetDenganHeader_(ss, KONFIG.NAMA_SHEET.STATISTIK_ORANG);
+    pastikanSheetDenganHeader_(ss, KONFIG.NAMA_SHEET.RINGKASAN_SESI);
+    return UtilKunci.denganKunciSkrip(function () {
+      if (props.getProperty(KUNCI_SIAP) === VERSI_INFRASTRUKTUR && props.getProperty(KUNCI_KOTOR) !== '1') return false;
+      bangunUlang_();
+      return true;
+    }, 30000);
+  }
+
+  function perbaruiStatistikOrang(personIds, snapshotPenugasanAktif) {
+    var target = {};
+    (personIds || []).forEach(function (id) { if (id) target[id] = true; });
+    if (Object.keys(target).length === 0) return;
+    var daftarStat = UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.STATISTIK_ORANG).map(function (s) {
+      var bersih = Object.assign({}, s); delete bersih.__baris; return bersih;
+    });
+    var petaIndeks = {};
+    daftarStat.forEach(function (s, i) { petaIndeks[s.person_id] = i; });
+    Object.keys(target).forEach(function (personId) {
+      var aktif = (snapshotPenugasanAktif || []).filter(function (a) {
+        return a.status === KONFIG.STATUS_PENUGASAN.AKTIF && a.person_id === personId;
+      });
+      var terbaru = '';
+      aktif.forEach(function (a) { if (!terbaru || new Date(a.dibuat_pada) > new Date(terbaru)) terbaru = a.dibuat_pada; });
+      var baris = { person_id: personId, last_assigned_at: terbaru, assignment_count: aktif.length, updated_at: new Date() };
+      if (Object.prototype.hasOwnProperty.call(petaIndeks, personId)) daftarStat[petaIndeks[personId]] = baris;
+      else daftarStat.push(baris);
+    });
+    UtilSheet.gantiSemuaBaris(KONFIG.NAMA_SHEET.STATISTIK_ORANG, daftarStat);
+    UtilCache.invalidasi('candidates');
+  }
+
+  function perbaruiRingkasanSesi(weekendId, sessionId, snapshotPenugasanAktif) {
+    var sesi = RepoSesi.ambilById(sessionId);
+    if (!sesi || sesi.weekend_id !== weekendId) return;
+    var ringkasan = buatRingkasanSesi_(sesi, snapshotPenugasanAktif, RepoKonfigPeran.daftarUrut());
+    var existing = UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.RINGKASAN_SESI).filter(function (r) { return r.session_id === sessionId; })[0];
+    if (existing) {
+      var perubahan = Object.assign({}, ringkasan); delete perubahan.summary_id;
+      UtilSheet.perbaruiBarisPadaNomor(KONFIG.NAMA_SHEET.RINGKASAN_SESI, existing.__baris, perubahan);
+    } else {
+      UtilSheet.tambahBaris(KONFIG.NAMA_SHEET.RINGKASAN_SESI, ringkasan);
+    }
+    UtilCache.invalidasi('schedule');
+    return ringkasan;
+  }
+
+  function perbaruiBanyakSesi(weekendId, sessionIds, snapshotPenugasanAktif) {
+    var target = {};
+    (sessionIds || []).forEach(function (id) { if (id) target[id] = true; });
+    var ids = Object.keys(target);
+    if (ids.length === 0) return [];
+    var sesiTarget = RepoSesi.daftarByAkhirPekan(weekendId).filter(function (s) { return target[s.session_id]; });
+    var daftarPeran = RepoKonfigPeran.daftarUrut();
+    var semuaRingkasan = UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.RINGKASAN_SESI)
+      .filter(function (r) { return !target[r.session_id]; })
+      .map(function (r) { var bersih = Object.assign({}, r); delete bersih.__baris; return bersih; });
+    var baru = sesiTarget.map(function (sesi) { return buatRingkasanSesi_(sesi, snapshotPenugasanAktif, daftarPeran); });
+    UtilSheet.gantiSemuaBaris(KONFIG.NAMA_SHEET.RINGKASAN_SESI, semuaRingkasan.concat(baru));
+    UtilCache.bersihkanReadModelKotor();
+    UtilCache.invalidasi('schedule');
+    return baru;
+  }
+
+  function hapusRingkasanSesi(sessionId) {
+    UtilSheet.hapusBarisById(KONFIG.NAMA_SHEET.RINGKASAN_SESI, 'summary_id', 'SUM-' + sessionId);
+    UtilCache.invalidasi('schedule');
+  }
+
+  function petaStatistikOrang() {
+    var peta = {};
+    UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.STATISTIK_ORANG).forEach(function (s) { peta[s.person_id] = s; });
+    return peta;
+  }
+
+  /** Kegagalan read model tidak boleh membuat pengguna mengulang core write. */
+  function setelahMutasiPenugasan(weekendId, sessionId, personIds, snapshotPenugasanAktif) {
+    try {
+      perbaruiStatistikOrang(personIds, snapshotPenugasanAktif);
+      var ringkasan = perbaruiRingkasanSesi(weekendId, sessionId, snapshotPenugasanAktif);
+      UtilCache.bersihkanReadModelKotor();
+      return ringkasan;
+    } catch (e) {
+      UtilCache.tandaiReadModelKotor();
+      console.error('[READ_MODEL] akan dibangun ulang saat bootstrap berikutnya: ' + e.message);
+      return null;
+    }
+  }
+
+  function tandaiKotor() {
+    UtilCache.tandaiReadModelKotor();
+    UtilCache.invalidasi('candidates');
+    UtilCache.invalidasi('schedule');
+  }
+
+  return {
+    pastikanInfrastruktur: pastikanInfrastruktur,
+    perbaruiStatistikOrang: perbaruiStatistikOrang,
+    perbaruiRingkasanSesi: perbaruiRingkasanSesi,
+    perbaruiBanyakSesi: perbaruiBanyakSesi,
+    setelahMutasiPenugasan: setelahMutasiPenugasan,
+    hapusRingkasanSesi: hapusRingkasanSesi,
+    petaStatistikOrang: petaStatistikOrang,
+    tandaiKotor: tandaiKotor
+  };
+})();
 /* ====================================================================
  * 5. LAYANAN (SERVICE)
  * Lapisan ini yang menegakkan aturan bisnis, izin akses, dan proses
@@ -1275,6 +1624,9 @@ var LayananPenjadwalan = (function () {
         if (!params.konfirmasiPeringatan) return { berhasil: false, alasan: 'PERINGATAN', peringatan: hasilCek.peringatan };
       }
 
+      var penugasanSebelum = UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.PENUGASAN)
+        .filter(function (a) { return a.status === KONFIG.STATUS_PENUGASAN.AKTIF; });
+
       var hasilRevisi = RepoAkhirPekan.perbaruiDenganCekRevisi(params.weekendId, params.revisiYangDiharapkan, {}, params.pelakuId);
       if (!hasilRevisi.berhasil) return hasilRevisi;
 
@@ -1285,7 +1637,10 @@ var LayananPenjadwalan = (function () {
         nilaiBaru: penugasan, alasanOverride: hasilCek.peringatan.length > 0 ? params.alasanOverride : undefined
       });
 
-      return { berhasil: true, penugasan: penugasan, akhirPekan: hasilRevisi.akhirPekan };
+      var ringkasanSesi = LayananRingkasan.setelahMutasiPenugasan(
+        params.weekendId, params.sessionId, [params.personId], penugasanSebelum.concat([penugasan])
+      );
+      return { berhasil: true, penugasan: penugasan, akhirPekan: hasilRevisi.akhirPekan, ringkasanSesi: ringkasanSesi };
     });
   }
 
@@ -1323,6 +1678,8 @@ var LayananPenjadwalan = (function () {
       }
 
       var penugasanAkhirPekan = RepoPenugasan.daftarByAkhirPekan(params.weekendId);
+      var semuaPenugasanAktif = UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.PENUGASAN)
+        .filter(function (a) { return a.status === KONFIG.STATUS_PENUGASAN.AKTIF; });
       var sesiKhusus = sesi.jenis_sesi === KONFIG.JENIS_SESI.KHUSUS;
       var jumlahSekarang = penugasanAkhirPekan.filter(function (a) {
         return a.session_id === params.sessionId && a.role_id === params.roleId;
@@ -1388,6 +1745,11 @@ var LayananPenjadwalan = (function () {
         };
       }));
 
+      var snapshotSetelah = semuaPenugasanAktif.concat(daftarPenugasan);
+      var ringkasanSesi = LayananRingkasan.setelahMutasiPenugasan(
+        params.weekendId, params.sessionId, personIds, snapshotSetelah
+      );
+
       var durasiMs = Date.now() - mulaiProses;
       console.log('[PERF] simpan batch petugas: ' + durasiMs + ' ms; ' + daftarPenugasan.length + ' orang');
       return {
@@ -1398,6 +1760,7 @@ var LayananPenjadwalan = (function () {
           return { assignmentId: a.assignment_id, personId: a.person_id, roleId: a.role_id, sessionId: a.session_id };
         }),
         revisiBaru: hasilRevisi.akhirPekan.revisi,
+        ringkasanSesi: ringkasanSesi,
         durasiMs: durasiMs
       };
     });
@@ -1418,6 +1781,8 @@ var LayananPenjadwalan = (function () {
 
       var existing = RepoPenugasan.ambilById(params.assignmentId);
       if (!existing) return { berhasil: false, alasan: 'TIDAK_DITEMUKAN' };
+      var penugasanSebelum = UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.PENUGASAN)
+        .filter(function (a) { return a.status === KONFIG.STATUS_PENUGASAN.AKTIF; });
 
       var hasilRevisi = RepoAkhirPekan.perbaruiDenganCekRevisi(params.weekendId, params.revisiYangDiharapkan, {}, params.pelakuId);
       if (!hasilRevisi.berhasil) return hasilRevisi;
@@ -1425,7 +1790,12 @@ var LayananPenjadwalan = (function () {
       var dihapus = RepoPenugasan.hapus(params.assignmentId, params.pelakuId);
       RepoLogAudit.catat({ pelakuId: params.pelakuId, aksi: 'HAPUS_PENUGASAN', jenisEntitas: 'Assignment', entitasId: params.assignmentId, nilaiLama: existing, nilaiBaru: dihapus });
 
-      return { berhasil: true, penugasan: dihapus, akhirPekan: hasilRevisi.akhirPekan };
+      var snapshotSetelah = penugasanSebelum.filter(function (a) { return a.assignment_id !== params.assignmentId; });
+      var ringkasanSesi = LayananRingkasan.setelahMutasiPenugasan(
+        params.weekendId, existing.session_id, [existing.person_id], snapshotSetelah
+      );
+
+      return { berhasil: true, penugasan: dihapus, akhirPekan: hasilRevisi.akhirPekan, ringkasanSesi: ringkasanSesi };
     });
   }
 
@@ -1533,6 +1903,9 @@ var LayananPenjadwalan = (function () {
         return { berhasil: false, alasan: 'DITOLAK', pesan: e.message };
       }
 
+      try { LayananRingkasan.hapusRingkasanSesi(params.sessionId); }
+      catch (eRingkasan) { LayananRingkasan.tandaiKotor(); }
+
       RepoLogAudit.catat({ pelakuId: params.pelakuId, aksi: 'HAPUS_SESI_KHUSUS', jenisEntitas: 'Session', entitasId: params.sessionId });
 
       return { berhasil: true, akhirPekan: akhirPekan };
@@ -1568,6 +1941,9 @@ var LayananPenjadwalan = (function () {
       penugasanIndividu.forEach(function (a) { RepoPenugasan.hapus(a.assignment_id, pelakuId); });
       penugasanKomunitas.forEach(function (c) { RepoPenugasanKomunitas.hapus(c.community_assignment_id, pelakuId); });
       RepoSesi.hapusSesiDraft(params.sessionId);
+      try { LayananRingkasan.hapusRingkasanSesi(params.sessionId); }
+      catch (eRingkasan) { console.error('[READ_MODEL] gagal menghapus ringkasan sesi: ' + eRingkasan.message); }
+      LayananRingkasan.tandaiKotor();
 
       var sisaSesi = RepoSesi.daftarByAkhirPekan(params.weekendId);
       // Jangan ikut menghapus penugasan tingkat jadwal (mis. Hias Altar)
@@ -1687,6 +2063,7 @@ var LayananOrang = (function () {
    * browser, yang dapat menyebabkan response gagal diserialisasi.
    */
   function ambilSemuaKandidatRingkas() {
+    return UtilCache.ambilAtauHitung('candidates', 'all', function () {
     var daftarOrang = RepoOrang.daftar(false);
     var daftarLingkungan = RepoLingkungan.daftar(true);
     var daftarWilayah = RepoWilayah.daftar(true);
@@ -1702,14 +2079,7 @@ var LayananOrang = (function () {
       peranPerOrang[pr.person_id].push(pr.role_id);
     });
 
-    var petaTerakhir = {};
-    UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.PENUGASAN).forEach(function (a) {
-      if (a.status !== KONFIG.STATUS_PENUGASAN.AKTIF) return;
-      var sekarangTercatat = petaTerakhir[a.person_id];
-      if (!sekarangTercatat || new Date(a.dibuat_pada) > new Date(sekarangTercatat)) {
-        petaTerakhir[a.person_id] = a.dibuat_pada;
-      }
-    });
+    var petaStatistik = LayananRingkasan.petaStatistikOrang();
 
     function tanggalIsoAman_(nilai) {
       if (!nilai) return null;
@@ -1730,8 +2100,9 @@ var LayananOrang = (function () {
         wilayahId: wilayah ? wilayah.wilayah_id : '',
         namaWilayah: wilayah ? wilayah.nama : 'Tanpa Wilayah',
         roleIds: peranPerOrang[p.person_id] || [],
-        terakhirBertugas: tanggalIsoAman_(petaTerakhir[p.person_id])
+        terakhirBertugas: tanggalIsoAman_(petaStatistik[p.person_id] && petaStatistik[p.person_id].last_assigned_at)
       };
+    });
     });
   }
 
@@ -2038,53 +2409,84 @@ function buatAmanUntukClient_(nilai) {
 }
 
 /** Membungkus semua pemanggilan API supaya kesalahan tidak membuat halaman web macet, tapi dikirim balik sebagai pesan yang bisa ditampilkan. */
-function bungkusApi_(fn) {
-  try { return { ok: true, data: buatAmanUntukClient_(fn()) }; }
-  catch (e) { return { ok: false, pesan: e.message }; }
+function bungkusApi_(fn, namaApi) {
+  UtilPerforma.mulai(namaApi || 'api');
+  var berhasil = false;
+  try {
+    var data = fn();
+    var mulaiRespons = Date.now();
+    var aman = buatAmanUntukClient_(data);
+    UtilPerforma.catat('response_prepare', mulaiRespons, { tipe: Array.isArray(aman) ? 'array' : typeof aman });
+    berhasil = true;
+    return { ok: true, data: aman };
+  }
+  catch (e) {
+    console.error('[API_ERROR] ' + (namaApi || 'api') + ': ' + e.message);
+    return { ok: false, pesan: e.message };
+  }
+  finally {
+    try { UtilCache.flushInvalidasi(); }
+    catch (eCache) { console.warn('[CACHE] gagal menyimpan versi invalidasi: ' + eCache.message); }
+    UtilPerforma.selesai({ berhasil: berhasil });
+  }
 }
 
 function api_ambilDataAwal(tglAwal, tglAkhir) {
   return bungkusApi_(function () {
+    var dibangunUlang = LayananRingkasan.pastikanInfrastruktur();
     var pelakuId = pelakuSaatIni_();
+    var master = UtilCache.ambilAtauHitung('master', 'bootstrap', function () {
+      return {
+        wilayahList: RepoWilayah.daftar(),
+        lingkunganList: RepoLingkungan.daftar(),
+        peranList: RepoKonfigPeran.daftarUrut()
+      };
+    });
+    var peranPelaku = LayananIzin.ambilPeran(pelakuId);
     return {
       pelakuId: pelakuId,
-      peran: LayananIzin.ambilPeran(pelakuId),
-      wilayahList: RepoWilayah.daftar(),
-      lingkunganList: RepoLingkungan.daftar(),
-      peranList: RepoKonfigPeran.daftarUrut(),
+      peran: peranPelaku,
+      wilayahList: master.wilayahList,
+      lingkunganList: master.lingkunganList,
+      peranList: master.peranList,
+      kandidatList: peranPelaku === KONFIG.IZIN.PELIHAT ? [] : LayananOrang.ambilSemuaKandidatRingkas(),
+      persiapan: { ringkasanDibangunUlang: dibangunUlang },
       // Kalender awal digabung ke request bootstrap supaya halaman tidak
       // menunggu dua eksekusi google.script.run secara berurutan.
       akhirPekanList: (tglAwal && tglAkhir) ? ambilAkhirPekanDalamRentang_(tglAwal, tglAkhir) : []
     };
-  });
+  }, 'api_ambilDataAwal');
 }
 
 function api_ambilAkhirPekanDalamRentang(tglAwal, tglAkhir) {
-  return bungkusApi_(function () { return ambilAkhirPekanDalamRentang_(tglAwal, tglAkhir); });
+  return bungkusApi_(function () {
+    LayananRingkasan.pastikanInfrastruktur();
+    return ambilAkhirPekanDalamRentang_(tglAwal, tglAkhir);
+  }, 'api_ambilAkhirPekanDalamRentang');
 }
 
 function ambilAkhirPekanDalamRentang_(tglAwal, tglAkhir) {
+  return UtilCache.ambilAtauHitung('schedule', 'calendar:' + String(tglAwal) + ':' + String(tglAkhir), function () {
   var daftar = RepoAkhirPekan.daftarDalamRentang(tglAwal, tglAkhir);
   if (daftar.length === 0) return [];
 
-  // Sheet Sessions/Assignments/Role_Config dibaca SEKALI untuk semua
-  // akhir pekan di bulan ini, bukan diulang per akhir pekan/sesi --
-  // itu penyebab tampilan kalender lambat sebelumnya.
+  // Kalender membaca Session_Summary yang ringkas. Riwayat Assignments
+  // tidak lagi dipindai setiap kali pengguna berpindah bulan.
   var idAkhirPekanBulanIni = {};
   daftar.forEach(function (w) { idAkhirPekanBulanIni[w.weekend_id] = true; });
 
   var semuaSesi = UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.SESI).filter(function (s) { return idAkhirPekanBulanIni[s.weekend_id]; });
-  var semuaPenugasan = UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.PENUGASAN)
-    .filter(function (a) { return idAkhirPekanBulanIni[a.weekend_id] && a.status === KONFIG.STATUS_PENUGASAN.AKTIF; });
-  var daftarPeran = RepoKonfigPeran.daftar(true);
+  var semuaRingkasan = UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.RINGKASAN_SESI)
+    .filter(function (r) { return idAkhirPekanBulanIni[r.weekend_id]; });
+  var ringkasanPerSesi = {};
+  semuaRingkasan.forEach(function (r) { ringkasanPerSesi[r.session_id] = r; });
 
   return daftar.map(function (w) {
     var sesiList = semuaSesi.filter(function (s) { return s.weekend_id === w.weekend_id; });
-    var progresSemuaSesi = sesiList.map(function (s) {
-      var penugasanSesiIni = semuaPenugasan.filter(function (a) { return a.session_id === s.session_id; });
-      return LayananKonflik.hitungProgresDariDaftar(penugasanSesiIni, daftarPeran);
+    var semuaTerpenuhi = sesiList.length > 0 && sesiList.every(function (s) {
+      var ringkasan = ringkasanPerSesi[s.session_id];
+      return !!ringkasan && ringkasan.all_complete === true;
     });
-    var semuaTerpenuhi = sesiList.length > 0 && progresSemuaSesi.every(function (p) { return p.every(function (r) { return r.status === 'TERPENUHI'; }); });
     return {
       weekendId: w.weekend_id,
       tanggalAcuan: w.tanggal_acuan,
@@ -2105,6 +2507,7 @@ function ambilAkhirPekanDalamRentang_(tglAwal, tglAkhir) {
       })
     };
   });
+  });
 }
 
 /**
@@ -2115,13 +2518,21 @@ function ambilAkhirPekanDalamRentang_(tglAwal, tglAkhir) {
  */
 function api_ambilAtauBuatAkhirPekan(tanggalAcuan, sesiDipilih) {
   return bungkusApi_(function () {
+    LayananRingkasan.pastikanInfrastruktur();
     var pelakuId = pelakuSaatIni_();
     LayananIzin.wajibkanPeran(pelakuId, [KONFIG.IZIN.ADMIN, KONFIG.IZIN.PENJADWAL]);
     return UtilKunci.denganKunciSkrip(function () {
       var akhirPekan = RepoAkhirPekan.ambilAtauBuatUntukTanggal(tanggalAcuan, pelakuId);
-      (sesiDipilih || []).forEach(function (s) {
-        RepoSesi.ambilAtauBuat(akhirPekan.weekend_id, s.jenisSesi, s.tanggalSesi, pelakuId);
+      var sesiDisiapkan = (sesiDipilih || []).map(function (s) {
+        return RepoSesi.ambilAtauBuat(akhirPekan.weekend_id, s.jenisSesi, s.tanggalSesi, pelakuId);
       });
+      try {
+        LayananRingkasan.perbaruiBanyakSesi(
+          akhirPekan.weekend_id,
+          sesiDisiapkan.map(function (s) { return s.session_id; }),
+          RepoPenugasan.daftarByAkhirPekan(akhirPekan.weekend_id)
+        );
+      } catch (eRingkasan) { LayananRingkasan.tandaiKotor(); }
       return LayananLaporan.buatLaporanAkhirPekan(akhirPekan.weekend_id);
     });
   });
@@ -2130,11 +2541,14 @@ function api_ambilAtauBuatAkhirPekan(tanggalAcuan, sesiDipilih) {
 /** Menambah satu sesi tidak baku (misalnya "Misa Paskah") ke akhir pekan yang sudah ada. */
 function api_tambahSesiKhusus(weekendId, namaKhusus, tanggalSesi) {
   return bungkusApi_(function () {
+    LayananRingkasan.pastikanInfrastruktur();
     var pelakuId = pelakuSaatIni_();
     LayananIzin.wajibkanPeran(pelakuId, [KONFIG.IZIN.ADMIN, KONFIG.IZIN.PENJADWAL]);
     if (!namaKhusus || !namaKhusus.trim()) throw new Error('Nama sesi khusus wajib diisi.');
     return UtilKunci.denganKunciSkrip(function () {
-      RepoSesi.buatSesiKhusus(weekendId, namaKhusus.trim(), tanggalSesi, pelakuId);
+      var sesi = RepoSesi.buatSesiKhusus(weekendId, namaKhusus.trim(), tanggalSesi, pelakuId);
+      try { LayananRingkasan.perbaruiBanyakSesi(weekendId, [sesi.session_id], RepoPenugasan.daftarByAkhirPekan(weekendId)); }
+      catch (eRingkasan) { LayananRingkasan.tandaiKotor(); }
       return LayananLaporan.buatLaporanAkhirPekan(weekendId);
     });
   });
@@ -2143,6 +2557,7 @@ function api_tambahSesiKhusus(weekendId, namaKhusus, tanggalSesi) {
 /** Membuat Misa Khusus langsung dari satu tanggal kosong di kalender bulanan. */
 function api_buatMisaKhususPadaTanggal(tanggalSesi, namaKhusus) {
   return bungkusApi_(function () {
+    LayananRingkasan.pastikanInfrastruktur();
     var pelakuId = pelakuSaatIni_();
     LayananIzin.wajibkanPeran(pelakuId, [KONFIG.IZIN.ADMIN, KONFIG.IZIN.PENJADWAL]);
     if (!namaKhusus || !namaKhusus.trim()) throw new Error('Nama Misa Khusus wajib diisi.');
@@ -2152,6 +2567,8 @@ function api_buatMisaKhususPadaTanggal(tanggalSesi, namaKhusus) {
         throw new Error('Tanggal ini sudah berada dalam jadwal final. Buka kunci jadwal lebih dulu.');
       }
       var sesi = RepoSesi.buatSesiKhusus(akhirPekan.weekend_id, namaKhusus.trim(), tanggalSesi, pelakuId);
+      try { LayananRingkasan.perbaruiBanyakSesi(akhirPekan.weekend_id, [sesi.session_id], RepoPenugasan.daftarByAkhirPekan(akhirPekan.weekend_id)); }
+      catch (eRingkasan) { LayananRingkasan.tandaiKotor(); }
       RepoLogAudit.catat({
         pelakuId: pelakuId,
         aksi: 'TAMBAH_MISA_KHUSUS_DARI_KALENDER',
@@ -2189,28 +2606,34 @@ function api_cariKandidat(kataKunci, roleId) {
  * master People/Person_Roles berubah.
  */
 function api_ambilSemuaKandidat() {
-  return bungkusApi_(function () { return LayananOrang.ambilSemuaKandidatRingkas(); });
+  return bungkusApi_(function () {
+    LayananRingkasan.pastikanInfrastruktur();
+    return LayananOrang.ambilSemuaKandidatRingkas();
+  }, 'api_ambilSemuaKandidat');
 }
 
 function api_tugaskanIndividu(params) {
   return bungkusApi_(function () {
+    LayananRingkasan.pastikanInfrastruktur();
     params.pelakuId = pelakuSaatIni_();
     return LayananPenjadwalan.tugaskanIndividu(params);
-  });
+  }, 'api_tugaskanIndividu');
 }
 
 function api_tugaskanIndividuBatch(params) {
   return bungkusApi_(function () {
+    LayananRingkasan.pastikanInfrastruktur();
     params.pelakuId = pelakuSaatIni_();
     return LayananPenjadwalan.tugaskanIndividuBatch(params);
-  });
+  }, 'api_tugaskanIndividuBatch');
 }
 
 function api_hapusPenugasanIndividu(params) {
   return bungkusApi_(function () {
+    LayananRingkasan.pastikanInfrastruktur();
     params.pelakuId = pelakuSaatIni_();
     return LayananPenjadwalan.hapusPenugasanIndividu(params);
-  });
+  }, 'api_hapusPenugasanIndividu');
 }
 
 function api_tugaskanKomunitas(params) {
@@ -2301,12 +2724,14 @@ function api_daftarOrang(sertakanTidakAktif) {
 /** Satu endpoint untuk seluruh tab Kelola Petugas, tanpa dua request paralel. */
 function api_ambilDataKelolaPetugas() {
   return bungkusApi_(function () {
-    return {
-      orang: buatDaftarOrangUntukKelola_(true),
-      wilayah: RepoWilayah.daftar(true),
-      lingkungan: RepoLingkungan.daftar(true)
-    };
-  });
+    return UtilCache.ambilAtauHitung('master', 'manage-people', function () {
+      return {
+        orang: buatDaftarOrangUntukKelola_(true),
+        wilayah: RepoWilayah.daftar(true),
+        lingkungan: RepoLingkungan.daftar(true)
+      };
+    });
+  }, 'api_ambilDataKelolaPetugas');
 }
 
 function api_buatOrang(data) {
@@ -2344,16 +2769,20 @@ function api_nonaktifkanLingkungan(lingkunganId) {
 
 function api_ambilSemuaAturan() {
   return bungkusApi_(function () {
-    return LayananAturan.ambilSemuaAturan(pelakuSaatIni_()).map(function (a) {
-      return {
-        rule_id: a.rule_id,
-        nama_aturan: a.nama_aturan,
-        aktif: a.aktif,
-        tingkat: a.tingkat,
-        versi_kebijakan: a.versi_kebijakan
-      };
+    var pelakuId = pelakuSaatIni_();
+    LayananIzin.wajibkanPeran(pelakuId, [KONFIG.IZIN.ADMIN]);
+    return UtilCache.ambilAtauHitung('policy', 'rules', function () {
+      return RepoKonfigAturan.daftar().map(function (a) {
+        return {
+          rule_id: a.rule_id,
+          nama_aturan: a.nama_aturan,
+          aktif: a.aktif,
+          tingkat: a.tingkat,
+          versi_kebijakan: a.versi_kebijakan
+        };
+      });
     });
-  });
+  }, 'api_ambilSemuaAturan');
 }
 function api_perbaruiAturan(ruleId, perubahan) {
   return bungkusApi_(function () { return LayananAturan.perbaruiAturan(ruleId, perubahan, pelakuSaatIni_()); });

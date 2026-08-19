@@ -1053,13 +1053,59 @@
     }
   }
 
+  /* --- Persiapan awal: app baru ditampilkan setelah snapshot utama stabil --- */
+  .layar-persiapan {
+    position: fixed; inset: 0; z-index: 5000; display: grid; place-items: center;
+    padding: 24px; background:
+      radial-gradient(circle at 20% 15%, rgba(241,249,126,0.30), transparent 30rem),
+      linear-gradient(145deg, #eaf3ea, #f7f3df 58%, #e6f0e7);
+    transition: opacity 220ms ease, visibility 220ms ease;
+  }
+  .layar-persiapan.selesai { opacity: 0; visibility: hidden; pointer-events: none; }
+  .persiapan-kartu {
+    width: min(420px, 100%); padding: 34px 30px; text-align: center;
+    border: 1px solid rgba(255,255,255,0.78); border-radius: 24px;
+    background: rgba(255,255,255,0.58); box-shadow: 0 26px 70px rgba(19,55,35,0.16), inset 0 1px 0 rgba(255,255,255,0.92);
+    -webkit-backdrop-filter: blur(22px) saturate(145%); backdrop-filter: blur(22px) saturate(145%);
+  }
+  .persiapan-logo {
+    width: 58px; height: 58px; margin: 0 auto 18px; display: grid; place-items: center;
+    border-radius: 18px; color: #fff; font-family: "Roboto Condensed", sans-serif; font-weight: 700; letter-spacing: 0.05em;
+    background: linear-gradient(145deg, rgba(2,44,18,0.98), rgba(6,69,30,0.86));
+    box-shadow: 0 14px 30px rgba(2,44,18,0.22), inset 0 1px 0 rgba(255,255,255,0.20);
+  }
+  .persiapan-kartu h1 { margin: 0 0 7px; font-size: 23px; }
+  .persiapan-kartu p { margin: 0; color: var(--color-ink-soft); }
+  .persiapan-spinner {
+    width: 34px; height: 34px; margin: 22px auto 16px; border-radius: 50%;
+    border: 3px solid rgba(2,44,18,0.12); border-top-color: var(--color-ink);
+    animation: putar-persiapan 760ms linear infinite;
+  }
+  .persiapan-status { min-height: 22px; font-size: 13px; font-weight: 600; color: var(--color-ink); }
+  .persiapan-error { margin-top: 12px; color: var(--marun); }
+  .persiapan-coba-lagi { margin-top: 18px; }
+  body.app-loading .app-header, body.app-loading main { visibility: hidden; }
+  @keyframes putar-persiapan { to { transform: rotate(360deg); } }
+
   @media print {
     .app-header, #pesanGlobal, main, .skip-link { display: none !important; }
     body { background: white; }
   }
 </style>
 </head>
-<body>
+<body class="app-loading" aria-busy="true">
+
+<div class="layar-persiapan" id="layarPersiapan" role="status" aria-live="polite">
+  <div class="persiapan-kartu">
+    <div class="persiapan-logo" aria-hidden="true">PL</div>
+    <h1>Menyiapkan Penjadwalan</h1>
+    <p>Kalender dan data petugas disiapkan sebelum aplikasi ditampilkan.</p>
+    <div class="persiapan-spinner" id="spinnerPersiapan" aria-hidden="true"></div>
+    <div class="persiapan-status" id="statusPersiapan">Memuat kalender bulan ini...</div>
+    <div class="persiapan-error sembunyi" id="errorPersiapan"></div>
+    <button type="button" class="persiapan-coba-lagi sembunyi" id="btnCobaLagiPersiapan" onclick="mulaiAplikasi_()">Coba Lagi</button>
+  </div>
+</div>
 
 <a class="skip-link" href="#kontenUtama">Lewati ke konten utama</a>
 
@@ -1381,6 +1427,7 @@ var state = {
   akhirPekanKalender: [], kalenderSedangDimuat: null, akhirPekanAktif: null,
   antrianSimpan: [], operasiSimpanAktif: null, nomorOperasiSimpan: 0, timerStatusSinkronisasi: null, statusSinkronisasiTerakhir: null,
   refreshKalenderSetelahSinkronisasi: false,
+  persiapanSedangBerjalan: false, timerPersiapan: [],
   personIdsPeringatanTertunda: null,
   aksiPeringatanTertunda: null // dipakai modal peringatan untuk menyimpan aksi yang mau dijalankan ulang
 };
@@ -1545,7 +1592,34 @@ document.addEventListener('keydown', function (e) {
 // ====================================================================
 // MULAI APLIKASI
 // ====================================================================
-window.addEventListener('DOMContentLoaded', function () {
+window.addEventListener('DOMContentLoaded', mulaiAplikasi_);
+
+function bersihkanTimerPersiapan_() {
+  state.timerPersiapan.forEach(function (timer) { clearTimeout(timer); });
+  state.timerPersiapan = [];
+}
+
+function setStatusPersiapan_(teks) {
+  var el = document.getElementById('statusPersiapan');
+  if (el) el.textContent = teks;
+}
+
+function mulaiAplikasi_() {
+  if (state.persiapanSedangBerjalan) return;
+  state.persiapanSedangBerjalan = true;
+  bersihkanTimerPersiapan_();
+  document.body.classList.add('app-loading');
+  document.body.setAttribute('aria-busy', 'true');
+  var layar = document.getElementById('layarPersiapan');
+  layar.classList.remove('selesai');
+  layar.setAttribute('aria-hidden', 'false');
+  document.getElementById('spinnerPersiapan').classList.remove('sembunyi');
+  document.getElementById('errorPersiapan').classList.add('sembunyi');
+  document.getElementById('btnCobaLagiPersiapan').classList.add('sembunyi');
+  setStatusPersiapan_('Memuat kalender bulan ini...');
+  state.timerPersiapan.push(setTimeout(function () { setStatusPersiapan_('Menyiapkan data petugas dan aturan...'); }, 3500));
+  state.timerPersiapan.push(setTimeout(function () { setStatusPersiapan_('Menyelaraskan ringkasan agar pencarian lebih cepat...'); }, 9000));
+
   state.tanggalFokus = awalHari_(new Date());
   state.bulanTampil = new Date(state.tanggalFokus.getFullYear(), state.tanggalFokus.getMonth(), 1);
   document.getElementById('inputTanggalWorkspace').value = kunciTanggal_(tanggalMingguDariTanggal_(state.tanggalFokus));
@@ -1557,6 +1631,8 @@ window.addEventListener('DOMContentLoaded', function () {
   panggilServer('api_ambilDataAwal', rentangAwal.awal, rentangAwal.akhir).then(function (data) {
     state.pelakuId = data.pelakuId; state.peran = data.peran;
     state.wilayahList = data.wilayahList; state.lingkunganList = data.lingkunganList; state.peranList = data.peranList;
+    state.kandidatList = data.kandidatList || [];
+    state.kandidatDimuat = data.peran === 'VIEWER' || Array.isArray(data.kandidatList);
 
     var labelPeran = { ADMIN: 'Admin', SCHEDULER: 'Penjadwal', VIEWER: 'Pelihat' }[data.peran] || data.peran;
     document.getElementById('infoPengguna').textContent = data.pelakuId + ' — ' + labelPeran;
@@ -1569,8 +1645,24 @@ window.addEventListener('DOMContentLoaded', function () {
     aturAksesKalender_();
     isiPilihanWilayahLingkungan();
     tampilkanDaftarKalender_(data.akhirPekanList || []);
-  }).catch(function (e) { tampilkanPesan('error', 'Gagal memuat data awal: ' + e.message); });
-});
+    bersihkanTimerPersiapan_();
+    setStatusPersiapan_(data.persiapan && data.persiapan.ringkasanDibangunUlang ? 'Ringkasan selesai diperbarui.' : 'Semua data siap.');
+    requestAnimationFrame(function () {
+      document.body.classList.remove('app-loading');
+      document.body.setAttribute('aria-busy', 'false');
+      layar.classList.add('selesai');
+      layar.setAttribute('aria-hidden', 'true');
+    });
+  }).catch(function (e) {
+    bersihkanTimerPersiapan_();
+    setStatusPersiapan_('Persiapan belum selesai.');
+    document.getElementById('spinnerPersiapan').classList.add('sembunyi');
+    var error = document.getElementById('errorPersiapan');
+    error.textContent = 'Gagal memuat data awal: ' + e.message;
+    error.classList.remove('sembunyi');
+    document.getElementById('btnCobaLagiPersiapan').classList.remove('sembunyi');
+  }).finally(function () { state.persiapanSedangBerjalan = false; });
+}
 
 function isiPilihanWilayahLingkungan() {
   var pilihWilayah = document.getElementById('pilihWilayahUntukLingkungan');
