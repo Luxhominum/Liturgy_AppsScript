@@ -1042,6 +1042,41 @@ var RepoSesi = (function () {
     if (existing) return existing;
     return dasar.buat({ weekend_id: weekendId, jenis_sesi: jenisSesi, tanggal_sesi: tanggalSesi, status: KONFIG.STATUS_AKHIR_PEKAN.DRAFT, nama_khusus: '' }, pelakuId);
   }
+
+  /**
+   * Menyiapkan beberapa sesi baku dengan satu kali baca dan maksimal satu
+   * kali tulis. Ini dipakai saat membuka jadwal baru agar tiga pilihan sesi
+   * tidak memicu rangkaian baca -> appendRow -> baca ulang secara berulang.
+   */
+  function ambilAtauBuatBanyak(weekendId, daftarSesi, pelakuId) {
+    var sesiSebelumnya = daftarByAkhirPekan(weekendId);
+    var petaJenis = {};
+    sesiSebelumnya.forEach(function (sesi) { petaJenis[sesi.jenis_sesi] = sesi; });
+
+    var sesiBaru = [];
+    var sesiList = [];
+    (daftarSesi || []).forEach(function (data) {
+      if (!data || !data.jenisSesi || !data.tanggalSesi) return;
+      var existing = petaJenis[data.jenisSesi];
+      if (existing) {
+        sesiList.push(existing);
+        return;
+      }
+      var baris = {
+        session_id: UtilId.idBaru('session_id'),
+        weekend_id: weekendId,
+        jenis_sesi: data.jenisSesi,
+        tanggal_sesi: data.tanggalSesi,
+        status: KONFIG.STATUS_AKHIR_PEKAN.DRAFT,
+        nama_khusus: ''
+      };
+      petaJenis[data.jenisSesi] = baris;
+      sesiBaru.push(baris);
+      sesiList.push(baris);
+    });
+    if (sesiBaru.length > 0) UtilSheet.tambahBanyakBaris(KONFIG.NAMA_SHEET.SESI, sesiBaru);
+    return { sesiList: sesiList, sesiBaru: sesiBaru, sesiSebelumnya: sesiSebelumnya };
+  }
   /** Sesi tambahan/tidak baku (misalnya "Misa Paskah") -- boleh lebih dari satu dalam satu akhir pekan. */
   function buatSesiKhusus(weekendId, namaKhusus, tanggalSesi, pelakuId) {
     return dasar.buat({ weekend_id: weekendId, jenis_sesi: KONFIG.JENIS_SESI.KHUSUS, tanggal_sesi: tanggalSesi, status: KONFIG.STATUS_AKHIR_PEKAN.DRAFT, nama_khusus: namaKhusus }, pelakuId);
@@ -1078,7 +1113,7 @@ var RepoSesi = (function () {
     return UtilSheet.hapusBarisById(KONFIG.NAMA_SHEET.SESI, 'session_id', sessionId);
   }
 
-  return { daftar: dasar.daftar, ambilById: dasar.ambilById, daftarByAkhirPekan: daftarByAkhirPekan, ambilAtauBuat: ambilAtauBuat, buatSesiKhusus: buatSesiKhusus, perbaruiSesiKhusus: perbaruiSesiKhusus, hapusSesiKhusus: hapusSesiKhusus, hapusSesiDraft: hapusSesiDraft, perbarui: dasar.perbarui };
+  return { daftar: dasar.daftar, ambilById: dasar.ambilById, daftarByAkhirPekan: daftarByAkhirPekan, ambilAtauBuat: ambilAtauBuat, ambilAtauBuatBanyak: ambilAtauBuatBanyak, buatSesiKhusus: buatSesiKhusus, perbaruiSesiKhusus: perbaruiSesiKhusus, hapusSesiKhusus: hapusSesiKhusus, hapusSesiDraft: hapusSesiDraft, perbarui: dasar.perbarui };
 })();
 
 // --- Penugasan individu (Organis, Pemazmur, Lektor, Misdinar, Prodiakon) per sesi ---
@@ -1311,6 +1346,21 @@ var LayananRingkasan = (function () {
     return baru;
   }
 
+  /**
+   * Sesi yang baru dibuat pasti belum mempunyai penugasan. Tambahkan
+   * ringkasan nol secara append batch tanpa membaca Assignments atau
+   * menulis ulang seluruh Session_Summary.
+   */
+  function tambahRingkasanSesiKosong(sesiList) {
+    var daftar = sesiList || [];
+    if (daftar.length === 0) return [];
+    var daftarPeran = RepoKonfigPeran.daftarUrut();
+    var ringkasan = daftar.map(function (sesi) { return buatRingkasanSesi_(sesi, [], daftarPeran); });
+    UtilSheet.tambahBanyakBaris(KONFIG.NAMA_SHEET.RINGKASAN_SESI, ringkasan);
+    UtilCache.invalidasi('schedule');
+    return ringkasan;
+  }
+
   function hapusRingkasanSesi(sessionId) {
     UtilSheet.hapusBarisById(KONFIG.NAMA_SHEET.RINGKASAN_SESI, 'summary_id', 'SUM-' + sessionId);
     UtilCache.invalidasi('schedule');
@@ -1347,6 +1397,7 @@ var LayananRingkasan = (function () {
     perbaruiStatistikOrang: perbaruiStatistikOrang,
     perbaruiRingkasanSesi: perbaruiRingkasanSesi,
     perbaruiBanyakSesi: perbaruiBanyakSesi,
+    tambahRingkasanSesiKosong: tambahRingkasanSesiKosong,
     setelahMutasiPenugasan: setelahMutasiPenugasan,
     hapusRingkasanSesi: hapusRingkasanSesi,
     petaStatistikOrang: petaStatistikOrang,
@@ -2221,6 +2272,40 @@ var LayananAudit = (function () {
 // --- Laporan Jadwal — bisa ditampilkan/dicetak di web, dan opsional diekspor ke sheet "Jadwal" (format persis file Excel lama). Tidak pernah mengubah data penugasan. ---
 var LayananLaporan = (function () {
 
+  function bentukPeranUntukClient_(peranList) {
+    return peranList.map(function (r) {
+      return {
+        roleId: r.role_id,
+        namaPeran: r.nama_peran,
+        jumlahDibutuhkan: Number(r.jumlah_dibutuhkan) || 0,
+        jumlahMaksimal: Number(r.jumlah_maksimal) || 0
+      };
+    });
+  }
+
+  /** Detail siap-pakai untuk akhir pekan yang sebelumnya belum punya sesi. */
+  function buatLaporanKosong(akhirPekan, sesiList, peranList) {
+    var daftarPeran = peranList || RepoKonfigPeran.daftarUrut();
+    return {
+      weekendId: akhirPekan.weekend_id,
+      tanggalAcuan: akhirPekan.tanggal_acuan,
+      status: akhirPekan.status,
+      revisi: akhirPekan.revisi,
+      peranList: bentukPeranUntukClient_(daftarPeran),
+      sesiList: (sesiList || []).map(function (sesi) {
+        return {
+          sessionId: sesi.session_id,
+          jenisSesi: sesi.jenis_sesi,
+          labelSesi: sesi.nama_khusus || KONFIG.LABEL_SESI[sesi.jenis_sesi] || sesi.jenis_sesi,
+          tanggalSesi: sesi.tanggal_sesi,
+          penugasanIndividu: [],
+          penugasanKomunitas: [],
+          progres: LayananKonflik.hitungProgresDariDaftar([], daftarPeran)
+        };
+      })
+    };
+  }
+
   /**
    * Dulu fungsi ini baca ulang sheet People/Wilayah/Lingkungan/
    * Role_Config UNTUK SETIAP baris penugasan, dan baca ulang sheet
@@ -2281,14 +2366,7 @@ var LayananLaporan = (function () {
 
     return {
       weekendId: akhirPekan.weekend_id, tanggalAcuan: akhirPekan.tanggal_acuan, status: akhirPekan.status, revisi: akhirPekan.revisi,
-      peranList: peranList.map(function (r) {
-        return {
-          roleId: r.role_id,
-          namaPeran: r.nama_peran,
-          jumlahDibutuhkan: Number(r.jumlah_dibutuhkan) || 0,
-          jumlahMaksimal: Number(r.jumlah_maksimal) || 0
-        };
-      }),
+      peranList: bentukPeranUntukClient_(peranList),
       sesiList: laporanSesi
     };
   }
@@ -2367,7 +2445,7 @@ var LayananLaporan = (function () {
     });
   }
 
-  return { buatLaporanAkhirPekan: buatLaporanAkhirPekan, tulisKeSheetJadwal: tulisKeSheetJadwal };
+  return { buatLaporanAkhirPekan: buatLaporanAkhirPekan, buatLaporanKosong: buatLaporanKosong, tulisKeSheetJadwal: tulisKeSheetJadwal };
 })();
 
 
@@ -2523,19 +2601,30 @@ function api_ambilAtauBuatAkhirPekan(tanggalAcuan, sesiDipilih) {
     LayananIzin.wajibkanPeran(pelakuId, [KONFIG.IZIN.ADMIN, KONFIG.IZIN.PENJADWAL]);
     return UtilKunci.denganKunciSkrip(function () {
       var akhirPekan = RepoAkhirPekan.ambilAtauBuatUntukTanggal(tanggalAcuan, pelakuId);
-      var sesiDisiapkan = (sesiDipilih || []).map(function (s) {
-        return RepoSesi.ambilAtauBuat(akhirPekan.weekend_id, s.jenisSesi, s.tanggalSesi, pelakuId);
-      });
+      var hasilSesi = RepoSesi.ambilAtauBuatBanyak(akhirPekan.weekend_id, sesiDipilih || [], pelakuId);
       try {
-        LayananRingkasan.perbaruiBanyakSesi(
-          akhirPekan.weekend_id,
-          sesiDisiapkan.map(function (s) { return s.session_id; }),
-          RepoPenugasan.daftarByAkhirPekan(akhirPekan.weekend_id)
-        );
+        LayananRingkasan.tambahRingkasanSesiKosong(hasilSesi.sesiBaru);
       } catch (eRingkasan) { LayananRingkasan.tandaiKotor(); }
-      return LayananLaporan.buatLaporanAkhirPekan(akhirPekan.weekend_id);
+
+      // Bila sebelumnya belum ada sesi, seluruh jadwal pasti masih kosong.
+      // Kembalikan detail siap-render tanpa membaca semua master/penugasan.
+      if (hasilSesi.sesiSebelumnya.length === 0) {
+        return {
+          weekendId: akhirPekan.weekend_id,
+          tanggalAcuan: akhirPekan.tanggal_acuan,
+          detailSiap: LayananLaporan.buatLaporanKosong(akhirPekan, hasilSesi.sesiList, RepoKonfigPeran.daftarUrut())
+        };
+      }
+
+      // Jadwal lama mungkin sudah berisi penugasan. Respons awal tetap ringan;
+      // browser akan membuka workspace dahulu lalu meminta detail lengkap.
+      return {
+        weekendId: akhirPekan.weekend_id,
+        tanggalAcuan: akhirPekan.tanggal_acuan,
+        detailSiap: null
+      };
     });
-  });
+  }, 'api_ambilAtauBuatAkhirPekan');
 }
 
 /** Menambah satu sesi tidak baku (misalnya "Misa Paskah") ke akhir pekan yang sudah ada. */

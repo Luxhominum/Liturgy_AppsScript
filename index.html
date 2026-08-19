@@ -309,7 +309,11 @@
   .opsi-kandidat span { flex: 1; }
 
   .memuat { text-align: center; color: var(--abu-hangat); padding: 24px; font-size: 13px; }
-  .memuat::before { content: "\2726  "; }
+  .memuat::before {
+    content: ""; display: inline-block; width: 0.9rem; height: 0.9rem; margin-right: 0.55rem;
+    border: 2px solid rgba(2,44,18,0.18); border-top-color: currentColor; border-radius: 50%;
+    vertical-align: -0.16rem; animation: putar-simpan 0.7s linear infinite;
+  }
   .sembunyi { display: none !important; }
 
   @media (max-width: 760px) {
@@ -515,6 +519,12 @@
   button:hover { background: var(--color-ink-hover); transform: translateY(-1px); }
   button:active { transform: translateY(0); }
   button:disabled { cursor: not-allowed; opacity: 0.45; transform: none; }
+  button.sedang-proses:disabled { opacity: 0.78; }
+  button.sedang-proses::before {
+    content: ""; width: 0.82rem; height: 0.82rem; flex: 0 0 auto;
+    border: 2px solid rgba(255,255,255,0.35); border-top-color: currentColor; border-radius: 50%;
+    animation: putar-simpan 0.7s linear infinite;
+  }
   button.sekunder {
     border: 1px solid var(--color-border-strong); background: transparent; color: var(--color-ink);
   }
@@ -1509,9 +1519,19 @@ function panggilServer(namaFungsi) {
  */
 function jalankanDenganTombolSibuk_(elemenTombol, teksSementara, fnPromise) {
   var teksAsli = elemenTombol ? elemenTombol.textContent : null;
-  if (elemenTombol) { elemenTombol.disabled = true; elemenTombol.textContent = teksSementara; }
+  if (elemenTombol) {
+    elemenTombol.disabled = true;
+    elemenTombol.classList.add('sedang-proses');
+    elemenTombol.setAttribute('aria-busy', 'true');
+    elemenTombol.textContent = teksSementara;
+  }
   return Promise.resolve().then(fnPromise).finally(function () {
-    if (elemenTombol) { elemenTombol.disabled = false; elemenTombol.textContent = teksAsli; }
+    if (elemenTombol) {
+      elemenTombol.disabled = false;
+      elemenTombol.classList.remove('sedang-proses');
+      elemenTombol.removeAttribute('aria-busy');
+      elemenTombol.textContent = teksAsli;
+    }
   });
 }
 
@@ -2318,18 +2338,35 @@ document.getElementById('btnBukaAkhirPekan').addEventListener('click', function 
   if (sesiDipilih.length === 0) { tampilkanPesanModalBuat_('Centang minimal satu sesi.'); return; }
 
   document.getElementById('pesanModalBuatJadwal').innerHTML = '';
-  jalankanDenganTombolSibuk_(e.target, 'Membuka...', function () {
+  state.sesiWorkspace = sesiDipilih[0].jenisSesi;
+  document.getElementById('inputTanggalWorkspace').value = formatTanggalUntukInput_(tglObj);
+  document.getElementById('labelWorkspaceWeek').textContent = labelMingguWorkspace_(tglObj);
+  document.getElementById('ringkasanWorkspace').innerHTML = '<span class="lencana draft">Menyiapkan</span>';
+  document.getElementById('panelWorkspace').innerHTML = '<div class="memuat">Menyiapkan sesi jadwal...</div>';
+  document.getElementById('statusWorkspace').innerHTML = '<h3>Status Sesi</h3><div class="memuat">Menyiapkan...</div>';
+  tutupModal('modalBuatJadwal');
+  bukaModal('modalWorkspace');
+
+  jalankanDenganTombolSibuk_(e.target, 'Menyiapkan...', function () {
     return panggilServer('api_ambilAtauBuatAkhirPekan', tglObj.toISOString(), sesiDipilih)
-      .then(function (detail) {
-        tutupModal('modalBuatJadwal');
-        state.akhirPekanAktif = detail;
-        state.sesiWorkspace = sesiDipilih[0].jenisSesi;
-        document.getElementById('inputTanggalWorkspace').value = formatTanggalUntukInput_(detail.tanggalAcuan);
-        bukaModal('modalWorkspace');
-        tampilkanDetailSesuaiMode_(detail);
-        muatKalenderBulan();
+      .then(function (persiapan) {
+        if (persiapan.detailSiap) {
+          state.akhirPekanAktif = persiapan.detailSiap;
+          tampilkanDetailSesuaiMode_(persiapan.detailSiap);
+          muatKalenderBulan();
+          return persiapan.detailSiap;
+        }
+        document.getElementById('panelWorkspace').innerHTML = '<div class="memuat">Memuat petugas yang sudah tersimpan...</div>';
+        return bukaWorkspaceAkhirPekan_(persiapan.weekendId).then(function (detail) {
+          muatKalenderBulan();
+          return detail;
+        });
       })
-      .catch(function (e2) { tampilkanPesanModalBuat_(e2.message); });
+      .catch(function (e2) {
+        tutupModal('modalWorkspace');
+        bukaModal('modalBuatJadwal');
+        tampilkanPesanModalBuat_(e2.message);
+      });
   });
 });
 
