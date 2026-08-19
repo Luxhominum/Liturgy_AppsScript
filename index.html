@@ -1486,22 +1486,29 @@ function bukaModal(id) {
 /** Membungkus google.script.run jadi Promise supaya lebih mudah dipakai. */
 function panggilServer(namaFungsi) {
   var argumen = Array.prototype.slice.call(arguments, 1);
+  var mulaiPanggilan = Date.now();
+  function catatWaktu_(status) {
+    if (window.console && console.info) console.info('[PERF_CLIENT] ' + namaFungsi + ' ' + status + ': ' + (Date.now() - mulaiPanggilan) + ' ms');
+  }
   return new Promise(function (resolve, reject) {
     var selesai = false;
     var batasWaktu = setTimeout(function () {
       if (selesai) return;
       selesai = true;
+      catatWaktu_('timeout');
       reject(new Error('Server belum merespons setelah 45 detik. Muat ulang dan periksa data sebelum mencoba menyimpan lagi.'));
     }, 45000);
     function berhasil(hasil) {
       if (selesai) return;
       selesai = true; clearTimeout(batasWaktu);
+      catatWaktu_('success');
       if (!hasil || !hasil.ok) { reject(new Error((hasil && hasil.pesan) || 'Terjadi kesalahan.')); return; }
       resolve(hasil.data);
     }
     function gagal(err) {
       if (selesai) return;
       selesai = true; clearTimeout(batasWaktu);
+      catatWaktu_('failure');
       reject(new Error((err && err.message) || String(err)));
     }
     google.script.run
@@ -1909,7 +1916,10 @@ function bukaWorkspaceAkhirPekan_(weekendId, sessionId) {
 function tutupModalWorkspace_() {
   tutupModal('modalWorkspace');
   state.refreshKalenderSetelahSinkronisasi = !!state.operasiSimpanAktif || state.antrianSimpan.length > 0;
-  if (!state.refreshKalenderSetelahSinkronisasi) muatKalenderBulan();
+  if (!state.refreshKalenderSetelahSinkronisasi) {
+    if (state.akhirPekanAktif) sinkronKalenderLokal_(state.akhirPekanAktif);
+    else muatKalenderBulan();
+  }
 }
 
 function peranWorkspace_(detail, namaAlternatif) {
@@ -2289,6 +2299,37 @@ function tampilkanDaftarKalender_(daftar) {
   renderMiniKalender_();
 }
 
+function ringkasanKalenderDariDetail_(detail) {
+  var sesiList = (detail.sesiList || []).map(function (s) {
+    return { sessionId: s.sessionId, jenisSesi: s.jenisSesi, labelSesi: s.labelSesi, tanggalSesi: s.tanggalSesi };
+  });
+  var semuaTerpenuhi = sesiList.length > 0 && (detail.sesiList || []).every(function (s) {
+    return (s.progres || []).length > 0 && s.progres.every(function (p) { return p.status === 'TERPENUHI'; });
+  });
+  return {
+    weekendId: detail.weekendId, tanggalAcuan: detail.tanggalAcuan, status: detail.status, revisi: detail.revisi,
+    jumlahSesi: sesiList.length, semuaTerpenuhi: semuaTerpenuhi, sesiList: sesiList
+  };
+}
+
+function sinkronKalenderLokal_(detail) {
+  if (!detail || !detail.weekendId) return;
+  var ringkasan = ringkasanKalenderDariDetail_(detail);
+  var ditemukan = false;
+  state.akhirPekanKalender = (state.akhirPekanKalender || []).map(function (w) {
+    if (w.weekendId !== detail.weekendId) return w;
+    ditemukan = true;
+    return ringkasan;
+  });
+  if (!ditemukan) state.akhirPekanKalender.push(ringkasan);
+  tampilkanDaftarKalender_(state.akhirPekanKalender);
+}
+
+function hapusRingkasanKalenderLokal_(weekendId) {
+  state.akhirPekanKalender = (state.akhirPekanKalender || []).filter(function (w) { return w.weekendId !== weekendId; });
+  tampilkanDaftarKalender_(state.akhirPekanKalender);
+}
+
 function muatKalenderBulan() {
   var rentang = parameterKalenderTampil_();
   document.getElementById('labelBulan').textContent = rentang.label;
@@ -2313,18 +2354,35 @@ document.getElementById('btnBukaAkhirPekan').addEventListener('click', function 
     var nama = document.getElementById('inputNamaMisaKhususBaru').value.trim();
     if (!nama) { tampilkanPesanModalBuat_('Nama Misa Khusus wajib diisi.'); return; }
     document.getElementById('pesanModalBuatJadwal').innerHTML = '';
+    document.getElementById('inputTanggalWorkspace').value = formatTanggalUntukInput_(tglObj);
+    document.getElementById('labelWorkspaceWeek').textContent = labelMingguWorkspace_(tglObj);
+    document.getElementById('ringkasanWorkspace').innerHTML = '<span class="lencana draft">Menyiapkan</span>';
+    document.getElementById('panelWorkspace').innerHTML = '<div class="memuat">Membuat Misa Khusus...</div>';
+    document.getElementById('statusWorkspace').innerHTML = '<h3>Status Sesi</h3><div class="memuat">Menyiapkan...</div>';
+    tutupModal('modalBuatJadwal');
+    bukaModal('modalWorkspace');
+
     jalankanDenganTombolSibuk_(e.target, 'Membuat...', function () {
       return panggilServer('api_buatMisaKhususPadaTanggal', tglObj.toISOString(), nama)
-        .then(function (detailKhusus) {
-          tutupModal('modalBuatJadwal');
-          state.akhirPekanAktif = detailKhusus;
-          state.sesiWorkspace = 'SESSION:' + detailKhusus.sessionIdBaru;
-          document.getElementById('inputTanggalWorkspace').value = formatTanggalUntukInput_(detailKhusus.tanggalAcuan);
-          bukaModal('modalWorkspace');
-          tampilkanWorkspaceJadwal_(detailKhusus);
-          muatKalenderBulan();
+        .then(function (persiapanKhusus) {
+          state.sesiWorkspace = 'SESSION:' + persiapanKhusus.sessionIdBaru;
+          if (persiapanKhusus.detailSiap) {
+            state.akhirPekanAktif = persiapanKhusus.detailSiap;
+            tampilkanWorkspaceJadwal_(persiapanKhusus.detailSiap);
+            sinkronKalenderLokal_(persiapanKhusus.detailSiap);
+            return persiapanKhusus.detailSiap;
+          }
+          document.getElementById('panelWorkspace').innerHTML = '<div class="memuat">Memuat jadwal pada tanggal ini...</div>';
+          return bukaWorkspaceAkhirPekan_(persiapanKhusus.weekendId, persiapanKhusus.sessionIdBaru).then(function (detail) {
+            if (detail) sinkronKalenderLokal_(detail);
+            return detail;
+          });
         })
-        .catch(function (err) { tampilkanPesanModalBuat_(err.message); });
+        .catch(function (err) {
+          tutupModal('modalWorkspace');
+          bukaModal('modalBuatJadwal');
+          tampilkanPesanModalBuat_(err.message);
+        });
     });
     return;
   }
@@ -2353,12 +2411,12 @@ document.getElementById('btnBukaAkhirPekan').addEventListener('click', function 
         if (persiapan.detailSiap) {
           state.akhirPekanAktif = persiapan.detailSiap;
           tampilkanDetailSesuaiMode_(persiapan.detailSiap);
-          muatKalenderBulan();
+          sinkronKalenderLokal_(persiapan.detailSiap);
           return persiapan.detailSiap;
         }
         document.getElementById('panelWorkspace').innerHTML = '<div class="memuat">Memuat petugas yang sudah tersimpan...</div>';
         return bukaWorkspaceAkhirPekan_(persiapan.weekendId).then(function (detail) {
-          muatKalenderBulan();
+          if (detail) sinkronKalenderLokal_(detail);
           return detail;
         });
       })
@@ -2477,14 +2535,20 @@ function finalkanAkhirPekan() {
   if (tundaMutasiJikaSinkronisasi_()) return;
   var d = state.akhirPekanAktif;
   panggilServer('api_finalkanAkhirPekan', { weekendId: d.weekendId, revisiYangDiharapkan: d.revisi })
-    .then(function (hasil) { prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(d.weekendId); muatKalenderBulan(); }); })
+    .then(function (hasil) { prosesHasilTransaksi(hasil, function () {
+      d.status = hasil.akhirPekan.status; d.revisi = hasil.akhirPekan.revisi;
+      tampilkanWorkspaceJadwal_(d); sinkronKalenderLokal_(d);
+    }); })
     .catch(function (e) { tampilkanPesan('error', e.message); });
 }
 function bukaKembaliAkhirPekan() {
   if (tundaMutasiJikaSinkronisasi_()) return;
   var d = state.akhirPekanAktif;
   panggilServer('api_bukaKembaliAkhirPekan', { weekendId: d.weekendId, revisiYangDiharapkan: d.revisi })
-    .then(function (hasil) { prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(d.weekendId); muatKalenderBulan(); }); })
+    .then(function (hasil) { prosesHasilTransaksi(hasil, function () {
+      d.status = hasil.akhirPekan.status; d.revisi = hasil.akhirPekan.revisi;
+      tampilkanWorkspaceJadwal_(d); sinkronKalenderLokal_(d);
+    }); })
     .catch(function (e) { tampilkanPesan('error', e.message); });
 }
 
@@ -2492,7 +2556,14 @@ function hapusPenugasan(assignmentId, weekendId) {
   if (tundaMutasiJikaSinkronisasi_()) return;
   var d = state.akhirPekanAktif;
   panggilServer('api_hapusPenugasanIndividu', { assignmentId: assignmentId, weekendId: weekendId, revisiYangDiharapkan: d.revisi })
-    .then(function (hasil) { prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(weekendId); }); })
+    .then(function (hasil) { prosesHasilTransaksi(hasil, function () {
+      d.revisi = hasil.akhirPekan.revisi;
+      d.sesiList.forEach(function (s) {
+        s.penugasanIndividu = s.penugasanIndividu.filter(function (a) { return a.assignmentId !== assignmentId; });
+        s.progres.forEach(function (p) { p.terisi = s.penugasanIndividu.filter(function (a) { return a.roleId === p.roleId; }).length; p.status = p.terisi >= p.dibutuhkan ? 'TERPENUHI' : 'BELUM_LENGKAP'; });
+      });
+      tampilkanWorkspaceJadwal_(d); sinkronKalenderLokal_(d);
+    }); })
     .catch(function (e) { tampilkanPesan('error', e.message); });
 }
 
@@ -2501,7 +2572,11 @@ function hapusPenugasanKomunitas(communityAssignmentId, weekendId) {
   if (!confirm('Batalkan penugasan ini?')) return;
   var d = state.akhirPekanAktif;
   panggilServer('api_hapusPenugasanKomunitas', { communityAssignmentId: communityAssignmentId, weekendId: weekendId, revisiYangDiharapkan: d.revisi })
-    .then(function (hasil) { prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(weekendId); }); })
+    .then(function (hasil) { prosesHasilTransaksi(hasil, function () {
+      d.revisi = hasil.akhirPekan.revisi;
+      d.sesiList.forEach(function (s) { s.penugasanKomunitas = s.penugasanKomunitas.filter(function (c) { return c.communityAssignmentId !== communityAssignmentId; }); });
+      tampilkanWorkspaceJadwal_(d);
+    }); })
     .catch(function (e) { tampilkanPesan('error', e.message); });
 }
 
@@ -2510,7 +2585,11 @@ function hapusSesiKhusus(sessionId, weekendId) {
   if (!confirm('Hapus sesi khusus ini? Hanya bisa dihapus kalau belum ada penugasan sama sekali di dalamnya.')) return;
   var d = state.akhirPekanAktif;
   panggilServer('api_hapusSesiKhusus', { sessionId: sessionId, weekendId: weekendId, revisiYangDiharapkan: d.revisi })
-    .then(function (hasil) { prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(weekendId); }); })
+    .then(function (hasil) { prosesHasilTransaksi(hasil, function () {
+      d.sesiList = d.sesiList.filter(function (s) { return s.sessionId !== sessionId; });
+      state.sesiWorkspace = d.sesiList.length ? (d.sesiList[0].jenisSesi === 'KHUSUS' ? 'SESSION:' + d.sesiList[0].sessionId : d.sesiList[0].jenisSesi) : 'SABTU_SORE';
+      tampilkanWorkspaceJadwal_(d); sinkronKalenderLokal_(d);
+    }); })
     .catch(function (e) { tampilkanPesan('error', e.message); });
 }
 
@@ -2533,16 +2612,19 @@ function hapusSesiDraft_(sessionId) {
   }).then(function (hasil) {
     if (!hasil.berhasil) { prosesHasilTransaksi(hasil, function () {}); return; }
     tampilkanPesan('sukses', 'Sesi Draft dihapus. ' + hasil.jumlahPenugasanDibatalkan + ' penugasan dibatalkan.');
-    if (hasil.akhirPekanDihapus || !hasil.detail || hasil.detail.sesiList.length === 0) {
+    if (hasil.akhirPekanDihapus) {
       state.akhirPekanAktif = null;
       tutupModal('modalWorkspace');
+      hapusRingkasanKalenderLokal_(detail.weekendId);
     } else {
-      state.akhirPekanAktif = hasil.detail;
-      var berikutnya = hasil.detail.sesiList[0];
+      detail.revisi = hasil.akhirPekan.revisi;
+      detail.sesiList = detail.sesiList.filter(function (item) { return item.sessionId !== sessionId; });
+      state.akhirPekanAktif = detail;
+      var berikutnya = detail.sesiList[0];
       state.sesiWorkspace = berikutnya && berikutnya.jenisSesi === 'KHUSUS' ? 'SESSION:' + berikutnya.sessionId : (berikutnya ? berikutnya.jenisSesi : 'SABTU_SORE');
-      tampilkanWorkspaceJadwal_(hasil.detail);
+      tampilkanWorkspaceJadwal_(detail);
+      sinkronKalenderLokal_(detail);
     }
-    muatKalenderBulan();
   }).catch(function (e) { tampilkanPesan('error', e.message); });
 }
 
@@ -2558,8 +2640,11 @@ function bukaUbahSesiKhusus(sessionId, weekendId) {
   panggilServer('api_perbaruiSesiKhusus', { sessionId: sessionId, weekendId: weekendId, namaKhusus: namaBaru.trim(), tanggalSesi: new Date(tglBaru + 'T00:00:00').toISOString() })
     .then(function (hasil) {
       if (!hasil.berhasil) { tampilkanPesan('error', hasil.pesan || 'Gagal mengubah sesi.'); return; }
+      sesi.labelSesi = hasil.sesi.nama_khusus || namaBaru.trim();
+      sesi.tanggalSesi = hasil.sesi.tanggal_sesi;
+      tampilkanWorkspaceJadwal_(d);
+      sinkronKalenderLokal_(d);
       tampilkanPesan('sukses', 'Sesi khusus diperbarui.');
-      bukaDetailAkhirPekan(weekendId);
     })
     .catch(function (e) { tampilkanPesan('error', e.message); });
 }
@@ -2945,7 +3030,8 @@ function prosesAntrianSimpan_() {
       perbaruiStatusAntrianSimpan_();
       if (state.refreshKalenderSetelahSinkronisasi) {
         state.refreshKalenderSetelahSinkronisasi = false;
-        muatKalenderBulan();
+        if (operasi.detail) sinkronKalenderLokal_(operasi.detail);
+        else muatKalenderBulan();
       }
     }
   });
@@ -2982,6 +3068,27 @@ function simpanPilihanKandidat(elemenTombol) {
 }
 
 // --- Modal pilih Wilayah untuk penugasan komunitas ---
+function terapkanPenugasanKomunitasLokal_(hasil) {
+  if (!hasil || !hasil.berhasil || !hasil.penugasanKomunitas || !state.akhirPekanAktif) return;
+  var raw = hasil.penugasanKomunitas;
+  var wilayah = state.wilayahList.filter(function (w) { return w.wilayah_id === raw.wilayah_id; })[0];
+  var lingkungan = raw.lingkungan_id ? state.lingkunganList.filter(function (l) { return l.lingkungan_id === raw.lingkungan_id; })[0] : null;
+  var client = {
+    communityAssignmentId: raw.community_assignment_id,
+    jenisPenugasan: raw.jenis_penugasan,
+    labelJenis: { CHOIR: 'Paduan Suara', TATIB: 'Tatib', HIAS_ALTAR: 'Hias Altar' }[raw.jenis_penugasan] || raw.jenis_penugasan,
+    wilayahId: raw.wilayah_id,
+    namaWilayah: wilayah ? wilayah.nama : raw.wilayah_id,
+    namaLingkungan: lingkungan ? lingkungan.nama : '',
+    alasanOverride: raw.alasan_override || ''
+  };
+  state.akhirPekanAktif.sesiList.forEach(function (sesi) {
+    if (raw.session_id ? sesi.sessionId === raw.session_id : raw.jenis_penugasan === 'HIAS_ALTAR') sesi.penugasanKomunitas.push(client);
+  });
+  state.akhirPekanAktif.revisi = hasil.akhirPekan.revisi;
+  tampilkanWorkspaceJadwal_(state.akhirPekanAktif);
+}
+
 function bukaPilihWilayahKomunitas(sessionId, jenis, label, weekendId) {
   aturModeModalKandidat_('KOMUNITAS');
   document.getElementById('judulModalKandidat').textContent = 'Pilih Wilayah untuk ' + label;
@@ -3006,7 +3113,7 @@ function pilihWilayahKomunitas(wilayahId, sessionId, jenis, weekendId) {
   state.aksiPeringatanTertunda = jalankan;
   jalankan(false, '').then(function (hasil) {
     tutupModal('modalKandidat');
-    prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(weekendId); });
+    prosesHasilTransaksi(hasil, function () { terapkanPenugasanKomunitasLokal_(hasil); });
   }).catch(function (e) { tampilkanPesan('error', e.message); });
 }
 
@@ -3023,7 +3130,7 @@ document.getElementById('btnLanjutkanMeskiPeringatan').addEventListener('click',
           state.aksiPeringatanTertunda = null;
           state.personIdsPeringatanTertunda = null;
         }
-        prosesHasilTransaksi(hasil, function () { if (state.akhirPekanAktif) bukaDetailAkhirPekan(state.akhirPekanAktif.weekendId); });
+        prosesHasilTransaksi(hasil, function () { terapkanPenugasanKomunitasLokal_(hasil); });
       }).catch(function (e) { tampilkanPesan('error', e.message); });
     });
   }
@@ -3055,7 +3162,7 @@ function pilihLingkunganTatib(lingkunganId, wilayahId, sessionId, weekendId) {
   state.aksiPeringatanTertunda = jalankan;
   jalankan(false, '').then(function (hasil) {
     tutupModal('modalKandidat');
-    prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(weekendId); });
+    prosesHasilTransaksi(hasil, function () { terapkanPenugasanKomunitasLokal_(hasil); });
   }).catch(function (e) { tampilkanPesan('error', e.message); });
 }
 
@@ -3110,7 +3217,16 @@ function bukaTambahSesiKhusus(weekendId) {
   var tglInput = prompt('Tanggal sesi (YYYY-MM-DD):', formatTanggalUntukInput_(tanggalDefault));
   if (!tglInput) return;
   panggilServer('api_tambahSesiKhusus', weekendId, nama.trim(), new Date(tglInput + 'T00:00:00').toISOString())
-    .then(function (detailBaru) { state.akhirPekanAktif = detailBaru; tampilkanDetailSesuaiMode_(detailBaru); tampilkanPesan('sukses', 'Sesi khusus ditambahkan.'); })
+    .then(function (hasil) {
+      var detail = state.akhirPekanAktif;
+      if (!detail || detail.weekendId !== weekendId) return bukaWorkspaceAkhirPekan_(weekendId, hasil.sessionIdBaru);
+      detail.sesiList.push(hasil.sesiBaru);
+      state.sesiWorkspace = 'SESSION:' + hasil.sessionIdBaru;
+      tampilkanDetailSesuaiMode_(detail);
+      sinkronKalenderLokal_(detail);
+      tampilkanPesan('sukses', 'Sesi khusus ditambahkan.');
+      return detail;
+    })
     .catch(function (e) { tampilkanPesan('error', e.message); });
 }
 function formatTanggalUntukInput_(t) {
@@ -3128,9 +3244,10 @@ document.getElementById('btnTambahWilayah').addEventListener('click', function (
   if (!nama) return;
   panggilServer('api_buatWilayah', { nama: nama }).then(function (w) {
     state.wilayahList.push(w); isiPilihanWilayahLingkungan();
+    if (state.dataWilayahLingkunganCache) state.dataWilayahLingkunganCache.wilayah = state.wilayahList;
     document.getElementById('inputNamaWilayahBaru').value = '';
     tampilkanPesan('sukses', 'Wilayah "' + nama + '" ditambahkan.');
-    muatDaftarWilayahLingkungan();
+    if (state.dataWilayahLingkunganCache) tampilkanDaftarWilayahLingkungan_(state.dataWilayahLingkunganCache);
   }).catch(function (e) { tampilkanPesan('error', e.message); });
 });
 
@@ -3140,9 +3257,10 @@ document.getElementById('btnTambahLingkungan').addEventListener('click', functio
   if (!nama || !wilayahId) return;
   panggilServer('api_buatLingkungan', { nama: nama, wilayah_id: wilayahId }).then(function (l) {
     state.lingkunganList.push(l); isiPilihanWilayahLingkungan();
+    if (state.dataWilayahLingkunganCache) state.dataWilayahLingkunganCache.lingkungan = state.lingkunganList;
     document.getElementById('inputNamaLingkunganBaru').value = '';
     tampilkanPesan('sukses', 'Lingkungan "' + nama + '" ditambahkan.');
-    muatDaftarWilayahLingkungan();
+    if (state.dataWilayahLingkunganCache) tampilkanDaftarWilayahLingkungan_(state.dataWilayahLingkunganCache);
   }).catch(function (e) { tampilkanPesan('error', e.message); });
 });
 
@@ -3150,10 +3268,19 @@ document.getElementById('btnTambahOrang').addEventListener('click', function () 
   var nama = document.getElementById('inputNamaOrangBaru').value.trim();
   var lingkunganId = document.getElementById('pilihLingkunganUntukOrang').value;
   if (!nama || !lingkunganId) { tampilkanPesan('error', 'Nama dan Lingkungan wajib diisi.'); return; }
-  panggilServer('api_buatOrang', { nama: nama, lingkungan_id: lingkunganId }).then(function () {
+  panggilServer('api_buatOrang', { nama: nama, lingkungan_id: lingkunganId }).then(function (orangBaru) {
+    var lingkungan = state.lingkunganList.filter(function (l) { return l.lingkungan_id === lingkunganId; })[0];
+    var wilayah = lingkungan ? state.wilayahList.filter(function (w) { return w.wilayah_id === lingkungan.wilayah_id; })[0] : null;
+    if (!state.semuaOrangCache) state.semuaOrangCache = [];
+    state.semuaOrangCache.push({
+      personId: orangBaru.person_id, nama: orangBaru.nama, aktif: orangBaru.aktif,
+      lingkunganId: lingkunganId, namaLingkungan: lingkungan ? lingkungan.nama : '',
+      wilayahId: wilayah ? wilayah.wilayah_id : '', namaWilayah: wilayah ? wilayah.nama : '', peranDimiliki: []
+    });
+    sinkronkanKandidatDariOrang_();
     document.getElementById('inputNamaOrangBaru').value = '';
     tampilkanPesan('sukses', 'Petugas "' + nama + '" ditambahkan.');
-    muatDaftarOrang();
+    tampilkanDaftarOrangDariCache_();
   }).catch(function (e) { tampilkanPesan('error', e.message); });
 });
 
@@ -3238,16 +3365,20 @@ function muatDaftarWilayahLingkungan() {
 function nonaktifkanWilayah(wilayahId) {
   if (!confirm('Nonaktifkan Wilayah ini? Lingkungan di dalamnya sebaiknya dinonaktifkan juga secara terpisah.')) return;
   panggilServer('api_nonaktifkanWilayah', wilayahId).then(function () {
+    state.wilayahList.forEach(function (w) { if (w.wilayah_id === wilayahId) w.aktif = false; });
+    isiPilihanWilayahLingkungan();
+    if (state.dataWilayahLingkunganCache) tampilkanDaftarWilayahLingkungan_(state.dataWilayahLingkunganCache);
     tampilkanPesan('sukses', 'Wilayah dinonaktifkan.');
-    muatDaftarWilayahLingkungan();
   }).catch(function (e) { tampilkanPesan('error', e.message); });
 }
 
 function nonaktifkanLingkungan(lingkunganId) {
   if (!confirm('Nonaktifkan Lingkungan ini?')) return;
   panggilServer('api_nonaktifkanLingkungan', lingkunganId).then(function () {
+    state.lingkunganList.forEach(function (l) { if (l.lingkungan_id === lingkunganId) l.aktif = false; });
+    isiPilihanWilayahLingkungan();
+    if (state.dataWilayahLingkunganCache) tampilkanDaftarWilayahLingkungan_(state.dataWilayahLingkunganCache);
     tampilkanPesan('sukses', 'Lingkungan dinonaktifkan.');
-    muatDaftarWilayahLingkungan();
   }).catch(function (e) { tampilkanPesan('error', e.message); });
 }
 
@@ -3289,8 +3420,10 @@ function muatDaftarOrang() {
 function nonaktifkanOrang(personId) {
   if (!confirm('Nonaktifkan petugas ini? Riwayat penugasan lama tidak akan hilang.')) return;
   panggilServer('api_nonaktifkanOrang', personId).then(function () {
+    (state.semuaOrangCache || []).forEach(function (p) { if (p.personId === personId) p.aktif = false; });
+    sinkronkanKandidatDariOrang_();
+    tampilkanDaftarOrangDariCache_();
     tampilkanPesan('sukses', 'Petugas dinonaktifkan.');
-    muatDaftarOrang();
   }).catch(function (e) { tampilkanPesan('error', e.message); });
 }
 
@@ -3329,23 +3462,28 @@ function bukaKelolaPeranOrang(personId) {
 
 function berikanPeranOrang(personId, roleId, elemenTombol) {
   jalankanDenganTombolSibuk_(elemenTombol, 'Memproses...', function () {
-    return panggilServer('api_berikanPeran', personId, roleId).then(function () {
+    return panggilServer('api_berikanPeran', personId, roleId).then(function (diberikan) {
+      var orang = (state.semuaOrangCache || []).filter(function (p) { return p.personId === personId; })[0];
+      var peran = state.peranList.filter(function (r) { return r.role_id === roleId; })[0];
+      if (orang && diberikan && !orang.peranDimiliki.some(function (r) { return r.roleId === roleId; })) {
+        orang.peranDimiliki.push({ personRoleId: diberikan.person_role_id, roleId: roleId, namaPeran: peran ? peran.nama_peran : roleId });
+      }
+      sinkronkanKandidatDariOrang_();
       tampilkanPesan('sukses', 'Peran diberikan.');
-      return muatDataKelolaPetugas(true).then(function () {
-        bukaKelolaPeranOrang(personId);
-      });
+      bukaKelolaPeranOrang(personId);
     });
   });
 }
 
 function cabutPeranOrang(personRoleId, elemenTombol) {
   jalankanDenganTombolSibuk_(elemenTombol, 'Memproses...', function () {
-    return panggilServer('api_cabutPeran', personRoleId).then(function () {
+    return panggilServer('api_cabutPeran', personRoleId).then(function (dicabut) {
       tampilkanPesan('sukses', 'Peran dicabut.');
       var personId = state.personIdSedangDikelola;
-      return muatDataKelolaPetugas(true).then(function () {
-        bukaKelolaPeranOrang(personId);
-      });
+      var orang = (state.semuaOrangCache || []).filter(function (p) { return p.personId === personId; })[0];
+      if (orang) orang.peranDimiliki = orang.peranDimiliki.filter(function (r) { return r.personRoleId !== personRoleId; });
+      sinkronkanKandidatDariOrang_();
+      bukaKelolaPeranOrang(personId);
     });
   });
 }
@@ -3391,10 +3529,10 @@ function muatDaftarAturan(paksaMuatUlang) {
 
 function ubahStatusAturan(ruleId, aktifBaru, elemenTombol) {
   jalankanDenganTombolSibuk_(elemenTombol, 'Menyimpan...', function () {
-    return panggilServer('api_perbaruiAturan', ruleId, { aktif: aktifBaru }).then(function () {
-      state.aturanCache = null;
+    return panggilServer('api_perbaruiAturan', ruleId, { aktif: aktifBaru }).then(function (aturanBaru) {
+      state.aturanCache = (state.aturanCache || []).map(function (a) { return a.rule_id === ruleId ? aturanBaru : a; });
       tampilkanPesan('sukses', 'Pengaturan aturan diperbarui.');
-      return muatDaftarAturan(true);
+      tampilkanDaftarAturan_(state.aturanCache);
     }).catch(function (e) { tampilkanPesan('error', e.message); });
   });
 }
