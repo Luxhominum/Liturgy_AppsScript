@@ -335,11 +335,51 @@ var UtilSheet = (function () {
 
   function perbaruiBarisPadaNomor_(sheet, peta, nomorBaris, perubahan, namaSheet) {
     var kunci = Object.keys(perubahan);
+    var indeks = [];
     for (var i = 0; i < kunci.length; i++) {
       var kolom = kunci[i];
       var indeksKolom = peta[kolom];
       if (!indeksKolom) throw new Error('UtilSheet: kolom "' + kolom + '" tidak dikenal di "' + namaSheet + '"');
-      sheet.getRange(nomorBaris, indeksKolom).setValue(perubahan[kolom]);
+      indeks.push(indeksKolom);
+    }
+
+    // Sheet aplikasi adalah tabel data terkontrol (tanpa formula pada
+    // kolom skema). Kalau barisnya sudah ada di cache eksekusi, tulis
+    // seluruh rentang perubahan dalam SATU setValues. Sebelumnya setiap
+    // kolom memakai setValue sendiri; update revisi + waktu saja sudah
+    // membutuhkan beberapa round-trip ke Google Sheets.
+    var cache = cacheBarisEksekusi_[namaSheet];
+    var existing = null;
+    if (cache) {
+      for (var c = 0; c < cache.length; c++) {
+        if (cache[c].__baris === nomorBaris) { existing = cache[c]; break; }
+      }
+    }
+    var skema = KONFIG.SKEMA[namaSheet];
+    var bisaBatch = !!existing && !!skema && indeks.length > 0;
+    var indeksAwal = bisaBatch ? Math.min.apply(null, indeks) : 0;
+    var indeksAkhir = bisaBatch ? Math.max.apply(null, indeks) : 0;
+    var headerPerIndeks = {};
+    Object.keys(peta).forEach(function (namaHeader) { headerPerIndeks[peta[namaHeader]] = namaHeader; });
+    var nilaiRentang = [];
+    if (bisaBatch) {
+      for (var j = indeksAwal; j <= indeksAkhir; j++) {
+        var header = headerPerIndeks[j];
+        if (!header || skema.indexOf(header) === -1 || !Object.prototype.hasOwnProperty.call(existing, header)) {
+          bisaBatch = false;
+          break;
+        }
+        nilaiRentang.push(Object.prototype.hasOwnProperty.call(perubahan, header) ? perubahan[header] : existing[header]);
+      }
+    }
+
+    if (bisaBatch) {
+      sheet.getRange(nomorBaris, indeksAwal, 1, nilaiRentang.length).setValues([nilaiRentang]);
+    } else {
+      for (var k = 0; k < kunci.length; k++) {
+        var namaKolom = kunci[k];
+        sheet.getRange(nomorBaris, peta[namaKolom]).setValue(perubahan[namaKolom]);
+      }
     }
     invalidasiCacheSheet_(namaSheet);
     return true;
@@ -1227,6 +1267,7 @@ var LayananPenjadwalan = (function () {
    * ditulis bila salah satu pilihan diblokir oleh aturan bisnis.
    */
   function tugaskanIndividuBatch(params) {
+    var mulaiProses = Date.now();
     var peranPelaku = LayananIzin.wajibkanPeran(params.pelakuId, [KONFIG.IZIN.ADMIN, KONFIG.IZIN.PENJADWAL]);
     var personIds = [];
     var sudahDipilih = {};
@@ -1318,11 +1359,17 @@ var LayananPenjadwalan = (function () {
         };
       }));
 
+      var durasiMs = Date.now() - mulaiProses;
+      console.log('[PERF] simpan batch petugas: ' + durasiMs + ' ms; ' + daftarPenugasan.length + ' orang');
       return {
         berhasil: true,
         jumlahTersimpan: daftarPenugasan.length,
         assignmentIds: daftarPenugasan.map(function (a) { return a.assignment_id; }),
-        revisiBaru: hasilRevisi.akhirPekan.revisi
+        penugasan: daftarPenugasan.map(function (a) {
+          return { assignmentId: a.assignment_id, personId: a.person_id, roleId: a.role_id, sessionId: a.session_id };
+        }),
+        revisiBaru: hasilRevisi.akhirPekan.revisi,
+        durasiMs: durasiMs
       };
     });
   }

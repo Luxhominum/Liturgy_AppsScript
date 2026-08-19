@@ -583,6 +583,19 @@
   .workspace-judul { margin-bottom: var(--space-5); gap: var(--space-4); }
   .workspace-judul h2 { margin-bottom: var(--space-1); font-size: var(--text-2xl); }
   .workspace-ringkasan { justify-content: flex-start; }
+  .workspace-ringkasan-utama { display: inline-flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+  .status-sinkronisasi {
+    display: inline-flex; min-height: 1.75rem; align-items: center; gap: 0.45rem; padding: 0.25rem 0.65rem;
+    border: 1px solid var(--color-border); border-radius: var(--radius-pill); background: var(--color-surface);
+    color: var(--color-ink-soft); font-size: var(--text-xs); font-weight: 650;
+  }
+  .status-sinkronisasi[hidden] { display: none; }
+  .status-sinkronisasi.sedang-menyimpan::before {
+    width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--color-warning);
+    content: ""; animation: denyut-sinkron 0.9s ease-in-out infinite alternate;
+  }
+  .status-sinkronisasi.tersimpan { border-color: rgba(2,44,18,0.2); background: var(--color-blue-soft); color: var(--color-ink); }
+  .status-sinkronisasi.gagal { border-color: rgba(150,63,58,0.25); background: var(--color-danger-soft); color: var(--color-danger); }
   .workspace-kontrol { display: grid; grid-template-columns: 1fr; gap: var(--space-3); }
   .workspace-kontrol label { color: var(--color-ink-soft); font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
   .workspace-kontrol input, .workspace-kontrol select { margin-top: var(--space-2); }
@@ -615,6 +628,9 @@
     padding: 0.4rem 0.7rem; border: 1px solid var(--color-border); border-radius: var(--radius-pill);
     background: var(--color-surface-muted); color: var(--color-ink); font-size: var(--text-xs);
   }
+  .chip-petugas.sedang-disimpan { border-style: dashed; background: var(--color-blue-soft); }
+  .chip-petugas .label-sinkronisasi { margin-left: 0.25rem; color: var(--color-ink-soft); font-size: 0.65rem; }
+  @keyframes denyut-sinkron { from { opacity: 0.35; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
   .workspace-aksi { margin-top: var(--space-5); padding-top: var(--space-4); border-color: var(--color-border); }
   .workspace-status {
     padding: var(--space-5); border: 0; border-top: 1px solid rgba(255,255,255,0.16);
@@ -787,7 +803,10 @@
             <h2>Jadwal Liturgi Paroki</h2>
             <span class="kecil" id="labelWorkspaceWeek">Pilih minggu untuk mulai menyusun jadwal.</span>
           </div>
-          <div class="workspace-ringkasan" id="ringkasanWorkspace"></div>
+          <div class="workspace-ringkasan">
+            <div class="workspace-ringkasan-utama" id="ringkasanWorkspace"></div>
+            <div class="status-sinkronisasi" id="statusSinkronisasi" role="status" aria-live="polite" hidden></div>
+          </div>
         </div>
         <div class="workspace-kontrol">
           <div class="workspace-nav-minggu">
@@ -993,7 +1012,7 @@
     <div id="daftarKandidatModal" style="max-height:300px; overflow-y:auto;"></div>
     <div class="baris" style="margin-top:12px; justify-content:flex-end;">
       <button class="sekunder" onclick="tutupModalKandidat()">Tutup</button>
-      <button id="btnSimpanKandidat" class="sembunyi" onclick="simpanPilihanKandidat(this)" disabled>Simpan Pilihan (0)</button>
+      <button id="btnSimpanKandidat" class="sembunyi" onclick="simpanPilihanKandidat(this)" disabled>Terapkan Petugas (0)</button>
     </div>
   </div>
 </div>
@@ -1029,6 +1048,8 @@ var state = {
   bulanTampil: new Date(), tanggalFokus: new Date(), modeKalender: 'MINGGU',
   modePenjadwalan: 'INPUT', kategoriWorkspace: 'WAVE1', sesiWorkspace: 'SABTU_SORE',
   akhirPekanKalender: [], kalenderSedangDimuat: null, akhirPekanAktif: null,
+  antrianSimpan: [], operasiSimpanAktif: null, nomorOperasiSimpan: 0, timerStatusSinkronisasi: null, statusSinkronisasiTerakhir: null,
+  personIdsPeringatanTertunda: null,
   aksiPeringatanTertunda: null // dipakai modal peringatan untuk menyimpan aksi yang mau dijalankan ulang
 };
 
@@ -1453,7 +1474,10 @@ function bolehEditWorkspace_(detail) {
 }
 
 function chipIndividuWorkspace_(a, detail, bolehEdit) {
-  return '<span class="chip-petugas">' + escapeHtml(a.namaOrang) + (bolehEdit ? ' <button class="tautan" onclick="hapusPenugasan(\'' + a.assignmentId + '\',\'' + detail.weekendId + '\')" title="Hapus">&times;</button>' : '') + '</span>';
+  var kelas = a.sedangDisimpan ? ' sedang-disimpan' : '';
+  var status = a.sedangDisimpan ? '<span class="label-sinkronisasi">menyimpanâ€¦</span>' : '';
+  var tombolHapus = bolehEdit && !a.sedangDisimpan ? ' <button class="tautan" onclick="hapusPenugasan(\'' + a.assignmentId + '\',\'' + detail.weekendId + '\')" title="Hapus">&times;</button>' : '';
+  return '<span class="chip-petugas' + kelas + '">' + escapeHtml(a.namaOrang) + status + tombolHapus + '</span>';
 }
 
 function chipKomunitasWorkspace_(c, detail, bolehEdit) {
@@ -1843,8 +1867,8 @@ function tampilkanDetailAkhirPekan(detail) {
       html += '<div class="baris-peran"><span>' + escapeHtml(peran.namaPeran) +
         ' <span class="kecil">(' + (progresPeran ? progresPeran.terisi + '/' + progresPeran.dibutuhkan : '') + ')</span></span><span>';
       petugasDiPeranIni.forEach(function (a) {
-        html += escapeHtml(a.namaOrang) + ' ';
-        if (bolehMengubah) {
+        html += escapeHtml(a.namaOrang) + (a.sedangDisimpan ? ' <span class="kecil">(menyimpanâ€¦)</span> ' : ' ');
+        if (bolehMengubah && !a.sedangDisimpan) {
           html += '<button class="tautan" onclick="hapusPenugasan(\'' + a.assignmentId + '\',\'' + detail.weekendId + '\')" title="Hapus">&times;</button> ';
         }
       });
@@ -1900,12 +1924,14 @@ function tampilkanDetailAkhirPekan(detail) {
 }
 
 function finalkanAkhirPekan() {
+  if (tundaMutasiJikaSinkronisasi_()) return;
   var d = state.akhirPekanAktif;
   panggilServer('api_finalkanAkhirPekan', { weekendId: d.weekendId, revisiYangDiharapkan: d.revisi })
     .then(function (hasil) { prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(d.weekendId); muatKalenderBulan(); }); })
     .catch(function (e) { tampilkanPesan('error', e.message); });
 }
 function bukaKembaliAkhirPekan() {
+  if (tundaMutasiJikaSinkronisasi_()) return;
   var d = state.akhirPekanAktif;
   panggilServer('api_bukaKembaliAkhirPekan', { weekendId: d.weekendId, revisiYangDiharapkan: d.revisi })
     .then(function (hasil) { prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(d.weekendId); muatKalenderBulan(); }); })
@@ -1913,6 +1939,7 @@ function bukaKembaliAkhirPekan() {
 }
 
 function hapusPenugasan(assignmentId, weekendId) {
+  if (tundaMutasiJikaSinkronisasi_()) return;
   var d = state.akhirPekanAktif;
   panggilServer('api_hapusPenugasanIndividu', { assignmentId: assignmentId, weekendId: weekendId, revisiYangDiharapkan: d.revisi })
     .then(function (hasil) { prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(weekendId); }); })
@@ -1920,6 +1947,7 @@ function hapusPenugasan(assignmentId, weekendId) {
 }
 
 function hapusPenugasanKomunitas(communityAssignmentId, weekendId) {
+  if (tundaMutasiJikaSinkronisasi_()) return;
   if (!confirm('Batalkan penugasan ini?')) return;
   var d = state.akhirPekanAktif;
   panggilServer('api_hapusPenugasanKomunitas', { communityAssignmentId: communityAssignmentId, weekendId: weekendId, revisiYangDiharapkan: d.revisi })
@@ -1928,6 +1956,7 @@ function hapusPenugasanKomunitas(communityAssignmentId, weekendId) {
 }
 
 function hapusSesiKhusus(sessionId, weekendId) {
+  if (tundaMutasiJikaSinkronisasi_()) return;
   if (!confirm('Hapus sesi khusus ini? Hanya bisa dihapus kalau belum ada penugasan sama sekali di dalamnya.')) return;
   var d = state.akhirPekanAktif;
   panggilServer('api_hapusSesiKhusus', { sessionId: sessionId, weekendId: weekendId, revisiYangDiharapkan: d.revisi })
@@ -1936,6 +1965,7 @@ function hapusSesiKhusus(sessionId, weekendId) {
 }
 
 function bukaUbahSesiKhusus(sessionId, weekendId) {
+  if (tundaMutasiJikaSinkronisasi_()) return;
   var d = state.akhirPekanAktif;
   var sesi = d.sesiList.filter(function (s) { return s.sessionId === sessionId; })[0];
   if (!sesi) return;
@@ -2094,7 +2124,7 @@ function perbaruiRingkasanPilihanKandidat_() {
   var batas = Number(state.batasPilihanKandidat) || 0;
   document.getElementById('ringkasanPilihanKandidat').textContent = 'Terpilih ' + jumlah + ' dari maksimal ' + batas + ' orang';
   var tombol = document.getElementById('btnSimpanKandidat');
-  tombol.textContent = 'Simpan Pilihan (' + jumlah + ')';
+  tombol.textContent = 'Terapkan Petugas (' + jumlah + ')';
   tombol.disabled = jumlah === 0;
   document.querySelectorAll('#daftarKandidatModal input[data-kandidat="1"]').forEach(function (input) {
     input.disabled = jumlah >= batas && !input.checked;
@@ -2127,33 +2157,217 @@ function tandaiKandidatSudahBertugas_(personIds) {
   });
 }
 
+function tampilkanStatusSinkronisasi_(jenis, teks, sembunyikanOtomatis) {
+  var el = document.getElementById('statusSinkronisasi');
+  if (state.timerStatusSinkronisasi) clearTimeout(state.timerStatusSinkronisasi);
+  el.hidden = false;
+  el.className = 'status-sinkronisasi ' + (jenis || '');
+  el.textContent = teks;
+  if (sembunyikanOtomatis) {
+    state.timerStatusSinkronisasi = setTimeout(function () {
+      if (!state.operasiSimpanAktif && state.antrianSimpan.length === 0) el.hidden = true;
+    }, 2200);
+  }
+}
+
+function jumlahPetugasMenungguSinkronisasi_() {
+  var jumlah = state.operasiSimpanAktif ? state.operasiSimpanAktif.personIds.length : 0;
+  state.antrianSimpan.forEach(function (operasi) { jumlah += operasi.personIds.length; });
+  return jumlah;
+}
+
+function tundaMutasiJikaSinkronisasi_() {
+  if (!state.operasiSimpanAktif && state.antrianSimpan.length === 0) return false;
+  tampilkanPesan('peringatan', 'Masih menyinkronkan pilihan petugas. Tunggu indikator â€œSemua perubahan tersimpanâ€ sebelum menghapus, memfinalkan, atau memilih petugas komunitas.');
+  return true;
+}
+
+function perbaruiStatusAntrianSimpan_() {
+  var jumlah = jumlahPetugasMenungguSinkronisasi_();
+  if (jumlah > 0) {
+    tampilkanStatusSinkronisasi_('sedang-menyimpan', 'Menyinkronkan ' + jumlah + ' petugas di latar belakangâ€¦', false);
+  } else if (state.statusSinkronisasiTerakhir) {
+    var statusTerakhir = state.statusSinkronisasiTerakhir;
+    state.statusSinkronisasiTerakhir = null;
+    tampilkanStatusSinkronisasi_(statusTerakhir.jenis, statusTerakhir.teks, true);
+  } else {
+    tampilkanStatusSinkronisasi_('tersimpan', 'Semua perubahan tersimpan', true);
+  }
+}
+
+function cariSesiOperasi_(operasi) {
+  return operasi.detail.sesiList.filter(function (sesi) { return sesi.sessionId === operasi.sessionId; })[0] || null;
+}
+
+function hitungUlangProgresOperasi_(operasi) {
+  var sesi = cariSesiOperasi_(operasi);
+  if (!sesi) return;
+  var progres = sesi.progres.filter(function (p) { return p.roleId === operasi.roleId; })[0];
+  var peran = operasi.detail.peranList.filter(function (p) { return p.roleId === operasi.roleId; })[0];
+  var terisi = sesi.penugasanIndividu.filter(function (a) { return a.roleId === operasi.roleId; }).length;
+  if (!progres) {
+    progres = { roleId: operasi.roleId, namaPeran: peran ? peran.namaPeran : operasi.roleId, dibutuhkan: peran ? peran.jumlahDibutuhkan : 1 };
+    sesi.progres.push(progres);
+  }
+  progres.terisi = terisi;
+  progres.status = terisi >= Number(progres.dibutuhkan || 1) ? 'TERPENUHI' : 'BELUM_LENGKAP';
+}
+
+function tampilkanDetailOperasiJikaAktif_(operasi) {
+  if (state.akhirPekanAktif && state.akhirPekanAktif.weekendId === operasi.weekendId) {
+    tampilkanDetailSesuaiMode_(operasi.detail);
+  }
+}
+
+function terapkanPenugasanOptimistis_(operasi) {
+  var sesi = cariSesiOperasi_(operasi);
+  if (!sesi) throw new Error('Sesi tidak ditemukan pada data yang sedang dibuka.');
+  operasi.tempAssignmentIds = [];
+  operasi.personIds.forEach(function (personId, indeks) {
+    var kandidat = (state.kandidatList || []).filter(function (p) { return p.personId === personId; })[0];
+    var tempId = 'PENDING_' + operasi.id + '_' + indeks;
+    operasi.tempAssignmentIds.push(tempId);
+    sesi.penugasanIndividu.push({
+      assignmentId: tempId,
+      roleId: operasi.roleId,
+      personId: personId,
+      namaOrang: kandidat ? kandidat.nama : personId,
+      namaWilayahOrang: '',
+      sedangDisimpan: true,
+      operasiSinkronisasiId: operasi.id
+    });
+  });
+  hitungUlangProgresOperasi_(operasi);
+  tampilkanDetailOperasiJikaAktif_(operasi);
+}
+
+function batalkanPenugasanOptimistis_(operasi) {
+  var sesi = cariSesiOperasi_(operasi);
+  if (!sesi) return;
+  sesi.penugasanIndividu = sesi.penugasanIndividu.filter(function (a) {
+    return a.operasiSinkronisasiId !== operasi.id;
+  });
+  hitungUlangProgresOperasi_(operasi);
+  tampilkanDetailOperasiJikaAktif_(operasi);
+}
+
+function konfirmasiPenugasanOptimistis_(operasi, hasil) {
+  var sesi = cariSesiOperasi_(operasi);
+  if (!sesi) return;
+  var petaId = {};
+  (hasil.penugasan || []).forEach(function (a) { petaId[a.personId] = a.assignmentId; });
+  var assignmentIds = hasil.assignmentIds || [];
+  var indeksFallback = 0;
+  sesi.penugasanIndividu.forEach(function (a) {
+    if (a.operasiSinkronisasiId !== operasi.id) return;
+    a.assignmentId = petaId[a.personId] || assignmentIds[indeksFallback] || a.assignmentId;
+    indeksFallback++;
+    delete a.sedangDisimpan;
+    delete a.operasiSinkronisasiId;
+  });
+  operasi.detail.revisi = Number(hasil.revisiBaru || operasi.detail.revisi);
+  tandaiKandidatSudahBertugas_(operasi.personIds);
+  if (hasil.durasiMs && window.console && console.info) console.info('[PERF] simpan petugas: ' + hasil.durasiMs + ' ms');
+  tampilkanDetailOperasiJikaAktif_(operasi);
+}
+
+function panggilSimpanOperasi_(operasi, konfirmasiPeringatan, alasanOverride) {
+  return panggilServer('api_tugaskanIndividuBatch', {
+    weekendId: operasi.weekendId,
+    sessionId: operasi.sessionId,
+    personIds: operasi.personIds,
+    roleId: operasi.roleId,
+    revisiYangDiharapkan: operasi.detail.revisi,
+    konfirmasiPeringatan: !!konfirmasiPeringatan,
+    alasanOverride: alasanOverride || ''
+  });
+}
+
+function siapkanPeringatanOperasi_(operasi, hasil) {
+  state.personIdsPeringatanTertunda = operasi.personIds.slice();
+  state.aksiPeringatanTertunda = function (konfirmasiPeringatan, alasanOverride) {
+    return panggilSimpanOperasi_(operasi, konfirmasiPeringatan, alasanOverride).then(function (hasilKonfirmasi) {
+      if (hasilKonfirmasi.berhasil) operasi.detail.revisi = Number(hasilKonfirmasi.revisiBaru || operasi.detail.revisi);
+      return hasilKonfirmasi;
+    });
+  };
+  prosesHasilTransaksi(hasil, function () {});
+}
+
+function batalkanAntrianWeekend_(weekendId) {
+  var tersisa = [];
+  state.antrianSimpan.forEach(function (operasi) {
+    if (operasi.weekendId === weekendId) batalkanPenugasanOptimistis_(operasi);
+    else tersisa.push(operasi);
+  });
+  state.antrianSimpan = tersisa;
+}
+
+function prosesAntrianSimpan_() {
+  if (state.operasiSimpanAktif || state.antrianSimpan.length === 0) {
+    if (!state.operasiSimpanAktif && state.antrianSimpan.length === 0) perbaruiStatusAntrianSimpan_();
+    return;
+  }
+  var operasi = state.antrianSimpan.shift();
+  state.operasiSimpanAktif = operasi;
+  perbaruiStatusAntrianSimpan_();
+
+  panggilSimpanOperasi_(operasi, false, '').then(function (hasil) {
+    if (hasil.berhasil) {
+      konfirmasiPenugasanOptimistis_(operasi, hasil);
+      return;
+    }
+
+    batalkanPenugasanOptimistis_(operasi);
+    if (hasil.alasan === 'PERINGATAN') {
+      state.statusSinkronisasiTerakhir = { jenis: 'gagal', teks: 'Perubahan menunggu konfirmasi' };
+      siapkanPeringatanOperasi_(operasi, hasil);
+      return;
+    }
+    if (hasil.alasan === 'REVISI_KEDALUWARSA') batalkanAntrianWeekend_(operasi.weekendId);
+    prosesHasilTransaksi(hasil, function () {});
+    state.statusSinkronisasiTerakhir = { jenis: 'gagal', teks: 'Sebagian perubahan tidak tersimpan' };
+  }).catch(function (e) {
+    batalkanPenugasanOptimistis_(operasi);
+    batalkanAntrianWeekend_(operasi.weekendId);
+    tampilkanPesan('error', 'Koneksi terputus saat menyimpan. Data terbaru akan dimuat ulang: ' + e.message);
+    state.statusSinkronisasiTerakhir = { jenis: 'gagal', teks: 'Sinkronisasi gagal' };
+    if (state.akhirPekanAktif && state.akhirPekanAktif.weekendId === operasi.weekendId) bukaDetailAkhirPekan(operasi.weekendId);
+  }).finally(function () {
+    state.operasiSimpanAktif = null;
+    if (state.antrianSimpan.length > 0) prosesAntrianSimpan_();
+    else perbaruiStatusAntrianSimpan_();
+  });
+}
+
+function antrekanSimpanOperasi_(operasi) {
+  if (!state.operasiSimpanAktif && state.antrianSimpan.length === 0) state.statusSinkronisasiTerakhir = null;
+  state.antrianSimpan.push(operasi);
+  perbaruiStatusAntrianSimpan_();
+  prosesAntrianSimpan_();
+}
+
 function simpanPilihanKandidat(elemenTombol) {
   var ctx = state.konteksPilihKandidat;
   var d = state.akhirPekanAktif;
   var personIds = Object.keys(state.kandidatTerpilih || {});
   if (personIds.length === 0) return;
-  var jalankan = function (konfirmasiPeringatan, alasanOverride) {
-    return panggilServer('api_tugaskanIndividuBatch', {
-      weekendId: ctx.weekendId, sessionId: ctx.sessionId, personIds: personIds, roleId: ctx.roleId,
-      revisiYangDiharapkan: d.revisi, konfirmasiPeringatan: konfirmasiPeringatan, alasanOverride: alasanOverride
-    });
+  var operasi = {
+    id: ++state.nomorOperasiSimpan,
+    weekendId: ctx.weekendId,
+    sessionId: ctx.sessionId,
+    roleId: ctx.roleId,
+    personIds: personIds.slice(),
+    detail: d
   };
-  state.aksiPeringatanTertunda = jalankan;
-  return jalankanDenganTombolSibuk_(elemenTombol, 'Menyimpan...', function () {
-    return jalankan(false, '').then(function (hasil) {
-      if (hasil.berhasil) {
-        tandaiKandidatSudahBertugas_(personIds);
-        tutupModalKandidat();
-      } else if (hasil.alasan === 'DIBLOKIR') {
-        document.getElementById('pesanKandidatModal').innerHTML = '<div class="pesan-error">' +
-          escapeHtml((hasil.blokir || []).map(function (b) { return b.pesan; }).join(' | ')) + '</div>';
-        return;
-      }
-      prosesHasilTransaksi(hasil, function () { bukaDetailAkhirPekan(ctx.weekendId); });
-    }).catch(function (e) {
-      document.getElementById('pesanKandidatModal').innerHTML = '<div class="pesan-error">' + escapeHtml(e.message) + '</div>';
-    });
-  });
+  try {
+    terapkanPenugasanOptimistis_(operasi);
+  } catch (e) {
+    document.getElementById('pesanKandidatModal').innerHTML = '<div class="pesan-error">' + escapeHtml(e.message) + '</div>';
+    return;
+  }
+  tutupModalKandidat();
+  antrekanSimpanOperasi_(operasi);
 }
 
 // --- Modal pilih Wilayah untuk penugasan komunitas ---
@@ -2170,6 +2384,7 @@ function bukaPilihWilayahKomunitas(sessionId, jenis, label, weekendId) {
 }
 
 function pilihWilayahKomunitas(wilayahId, sessionId, jenis, weekendId) {
+  if (tundaMutasiJikaSinkronisasi_()) return;
   var d = state.akhirPekanAktif;
   var jalankan = function (konfirmasiPeringatan, alasanOverride) {
     return panggilServer('api_tugaskanKomunitas', {
@@ -2191,10 +2406,11 @@ document.getElementById('btnLanjutkanMeskiPeringatan').addEventListener('click',
     jalankanDenganTombolSibuk_(tombol, 'Menyimpan...', function () {
       return state.aksiPeringatanTertunda(true, alasan).then(function (hasil) {
         if (hasil.berhasil) {
-          tandaiKandidatSudahBertugas_(Object.keys(state.kandidatTerpilih || {}));
+          tandaiKandidatSudahBertugas_(state.personIdsPeringatanTertunda || Object.keys(state.kandidatTerpilih || {}));
           tutupModal('modalPeringatan');
           tutupModal('modalKandidat');
           state.aksiPeringatanTertunda = null;
+          state.personIdsPeringatanTertunda = null;
         }
         prosesHasilTransaksi(hasil, function () { if (state.akhirPekanAktif) bukaDetailAkhirPekan(state.akhirPekanAktif.weekendId); });
       }).catch(function (e) { tampilkanPesan('error', e.message); });
@@ -2217,6 +2433,7 @@ function bukaPilihLingkunganTatib(sessionId, weekendId) {
 }
 
 function pilihLingkunganTatib(lingkunganId, wilayahId, sessionId, weekendId) {
+  if (tundaMutasiJikaSinkronisasi_()) return;
   var d = state.akhirPekanAktif;
   var jalankan = function (konfirmasiPeringatan, alasanOverride) {
     return panggilServer('api_tugaskanKomunitas', {
@@ -2264,6 +2481,7 @@ window.addEventListener('afterprint', function () {
 
 // --- Ekspor ke sheet "Jadwal" (format persis file Excel lama, untuk arsip) ---
 function eksporJadwalKeSheet() {
+  if (tundaMutasiJikaSinkronisasi_()) return;
   var detail = state.akhirPekanAktif;
   if (!detail) return;
   panggilServer('api_eksporJadwalKeSheet', detail.weekendId).then(function (hasil) {
@@ -2273,6 +2491,7 @@ function eksporJadwalKeSheet() {
 
 /** Menambah misa tidak baku (misalnya "Misa Paskah") ke akhir pekan yang sedang dibuka. */
 function bukaTambahSesiKhusus(weekendId) {
+  if (tundaMutasiJikaSinkronisasi_()) return;
   var nama = prompt('Nama sesi khusus (contoh: Misa Paskah, Misa Kenaikan):');
   if (!nama || !nama.trim()) return;
   var d = state.akhirPekanAktif;
