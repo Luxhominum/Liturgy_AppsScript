@@ -1674,12 +1674,13 @@ function mulaiAplikasi_() {
     tampilkanDaftarKalender_(data.akhirPekanList || []);
     bersihkanTimerPersiapan_();
     setStatusPersiapan_(data.persiapan && data.persiapan.ringkasanDibangunUlang ? 'Ringkasan selesai diperbarui.' : 'Semua data siap.');
-    requestAnimationFrame(function () {
-      document.body.classList.remove('app-loading');
-      document.body.setAttribute('aria-busy', 'false');
-      layar.classList.add('selesai');
-      layar.setAttribute('aria-hidden', 'true');
-    });
+    // Jangan bergantung pada requestAnimationFrame untuk membuka aplikasi.
+    // Browser dapat menunda frame pada tab latar/in-app, sehingga data sudah
+    // siap tetapi layar persiapan terlihat macet tanpa batas.
+    document.body.classList.remove('app-loading');
+    document.body.setAttribute('aria-busy', 'false');
+    layar.classList.add('selesai');
+    layar.setAttribute('aria-hidden', 'true');
   }).catch(function (e) {
     bersihkanTimerPersiapan_();
     setStatusPersiapan_('Persiapan belum selesai.');
