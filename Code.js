@@ -823,11 +823,24 @@ var RepoAkhirPekan = (function () {
     }, pelakuId);
   }
 
+  /** Menghapus wadah jadwal yang masih Draft dan sudah tidak memiliki sesi. */
+  function hapusDraftKosong(weekendId) {
+    var akhirPekan = dasar.ambilById(weekendId);
+    if (!akhirPekan) return false;
+    if (akhirPekan.status === KONFIG.STATUS_AKHIR_PEKAN.FINAL) {
+      throw new Error('Jadwal final tidak boleh dihapus. Buka kunci jadwal lebih dulu.');
+    }
+    if (RepoSesi.daftarByAkhirPekan(weekendId).length > 0) {
+      throw new Error('Wadah jadwal masih memiliki sesi.');
+    }
+    return UtilSheet.hapusBarisById(KONFIG.NAMA_SHEET.AKHIR_PEKAN, 'weekend_id', weekendId);
+  }
+
   return {
     daftar: dasar.daftar, ambilById: dasar.ambilById, ambilByTanggalAcuan: ambilByTanggalAcuan,
     ambilAtauBuatUntukTanggal: ambilAtauBuatUntukTanggal, ambilTetangga: ambilTetangga,
     daftarDalamRentang: daftarDalamRentang, perbaruiDenganCekRevisi: perbaruiDenganCekRevisi,
-    finalkan: finalkan, bukaKembali: bukaKembali
+    finalkan: finalkan, bukaKembali: bukaKembali, hapusDraftKosong: hapusDraftKosong
   };
 })();
 
@@ -872,7 +885,14 @@ var RepoSesi = (function () {
     return UtilSheet.hapusBarisById(KONFIG.NAMA_SHEET.SESI, 'session_id', sessionId);
   }
 
-  return { daftar: dasar.daftar, ambilById: dasar.ambilById, daftarByAkhirPekan: daftarByAkhirPekan, ambilAtauBuat: ambilAtauBuat, buatSesiKhusus: buatSesiKhusus, perbaruiSesiKhusus: perbaruiSesiKhusus, hapusSesiKhusus: hapusSesiKhusus, perbarui: dasar.perbarui };
+  /** Penghapusan sesi Draft generik. Penugasan terkait ditangani service sebelum fungsi ini dipanggil. */
+  function hapusSesiDraft(sessionId) {
+    var sesi = dasar.ambilById(sessionId);
+    if (!sesi) return false;
+    return UtilSheet.hapusBarisById(KONFIG.NAMA_SHEET.SESI, 'session_id', sessionId);
+  }
+
+  return { daftar: dasar.daftar, ambilById: dasar.ambilById, daftarByAkhirPekan: daftarByAkhirPekan, ambilAtauBuat: ambilAtauBuat, buatSesiKhusus: buatSesiKhusus, perbaruiSesiKhusus: perbaruiSesiKhusus, hapusSesiKhusus: hapusSesiKhusus, hapusSesiDraft: hapusSesiDraft, perbarui: dasar.perbarui };
 })();
 
 // --- Penugasan individu (Organis, Pemazmur, Lektor, Misdinar, Prodiakon) per sesi ---
@@ -1222,6 +1242,11 @@ var LayananKonflik = (function () {
 // --- Proses simpan yang aman (satu-satunya jalan mengubah data Akhir Pekan/Sesi/Penugasan) ---
 var LayananPenjadwalan = (function () {
 
+  function sesiKhususYangValid_(sessionId, weekendId) {
+    var sesi = RepoSesi.ambilById(sessionId);
+    return !!sesi && sesi.weekend_id === weekendId && sesi.jenis_sesi === KONFIG.JENIS_SESI.KHUSUS;
+  }
+
   function tugaskanIndividu(params) {
     var peranPelaku = LayananIzin.wajibkanPeran(params.pelakuId, [KONFIG.IZIN.ADMIN, KONFIG.IZIN.PENJADWAL]);
 
@@ -1239,7 +1264,10 @@ var LayananPenjadwalan = (function () {
       var orang = RepoOrang.ambilById(params.personId);
       if (!orang || orang.aktif !== true) return { berhasil: false, alasan: 'ORANG_TIDAK_AKTIF' };
 
-      var hasilCek = LayananKonflik.cekPenugasanIndividu({ weekendId: params.weekendId, sessionId: params.sessionId, personId: params.personId, roleId: params.roleId });
+      var sesiKhusus = sesiKhususYangValid_(params.sessionId, params.weekendId);
+      var hasilCek = sesiKhusus
+        ? { blokir: [], peringatan: [] }
+        : LayananKonflik.cekPenugasanIndividu({ weekendId: params.weekendId, sessionId: params.sessionId, personId: params.personId, roleId: params.roleId });
       if (hasilCek.blokir.length > 0) return { berhasil: false, alasan: 'DIBLOKIR', blokir: hasilCek.blokir };
 
       if (hasilCek.peringatan.length > 0) {
@@ -1295,6 +1323,7 @@ var LayananPenjadwalan = (function () {
       }
 
       var penugasanAkhirPekan = RepoPenugasan.daftarByAkhirPekan(params.weekendId);
+      var sesiKhusus = sesi.jenis_sesi === KONFIG.JENIS_SESI.KHUSUS;
       var jumlahSekarang = penugasanAkhirPekan.filter(function (a) {
         return a.session_id === params.sessionId && a.role_id === params.roleId;
       }).length;
@@ -1320,7 +1349,7 @@ var LayananPenjadwalan = (function () {
           return;
         }
 
-        var hasilCek = LayananKonflik.cekPenugasanIndividu({
+        var hasilCek = sesiKhusus ? { blokir: [], peringatan: [] } : LayananKonflik.cekPenugasanIndividu({
           weekendId: params.weekendId,
           sessionId: params.sessionId,
           personId: personId,
@@ -1413,7 +1442,20 @@ var LayananPenjadwalan = (function () {
         return { berhasil: false, alasan: 'REVISI_KEDALUWARSA', current: akhirPekan };
       }
 
-      var hasilCek = LayananKonflik.cekPenugasanKomunitas({ weekendId: params.weekendId, sessionId: params.sessionId, jenisPenugasan: params.jenisPenugasan, wilayahId: params.wilayahId, lingkunganId: params.lingkunganId });
+      var komunitasSama = RepoPenugasanKomunitas.daftarByAkhirPekan(params.weekendId).some(function (c) {
+        return (c.session_id || '') === (params.sessionId || '') &&
+          c.jenis_penugasan === params.jenisPenugasan &&
+          c.wilayah_id === params.wilayahId &&
+          (c.lingkungan_id || '') === (params.lingkunganId || '');
+      });
+      if (komunitasSama) {
+        return { berhasil: false, alasan: 'DIBLOKIR', blokir: [{ ruleId: 'DUPLIKAT_PENUGASAN', pesan: 'Penugasan komunitas ini sudah dipilih untuk sesi tersebut.' }] };
+      }
+
+      var sesiKhusus = params.sessionId && sesiKhususYangValid_(params.sessionId, params.weekendId);
+      var hasilCek = sesiKhusus
+        ? { blokir: [], peringatan: [] }
+        : LayananKonflik.cekPenugasanKomunitas({ weekendId: params.weekendId, sessionId: params.sessionId, jenisPenugasan: params.jenisPenugasan, wilayahId: params.wilayahId, lingkunganId: params.lingkunganId });
       if (hasilCek.blokir.length > 0) return { berhasil: false, alasan: 'DIBLOKIR', blokir: hasilCek.blokir };
 
       if (hasilCek.peringatan.length > 0) {
@@ -1497,6 +1539,75 @@ var LayananPenjadwalan = (function () {
     });
   }
 
+  /**
+   * Menghapus satu sesi yang belum final beserta penugasan aktifnya.
+   * Hanya Admin yang boleh melakukan aksi ini. Penugasan di-soft-delete
+   * agar riwayat tetap dapat diaudit; baris sesi dan wadah kosong dihapus.
+   */
+  function hapusSesiDraft(params) {
+    var pelakuId = params.pelakuId;
+    LayananIzin.wajibkanPeran(pelakuId, [KONFIG.IZIN.ADMIN]);
+
+    return UtilKunci.denganKunciSkrip(function () {
+      var akhirPekan = RepoAkhirPekan.ambilById(params.weekendId);
+      if (!akhirPekan) return { berhasil: false, alasan: 'TIDAK_DITEMUKAN' };
+      if (akhirPekan.status === KONFIG.STATUS_AKHIR_PEKAN.FINAL) {
+        return { berhasil: false, alasan: 'DITOLAK', pesan: 'Jadwal final tidak boleh dihapus. Buka kunci jadwal lebih dulu.' };
+      }
+      if (Number(akhirPekan.revisi) !== Number(params.revisiYangDiharapkan)) {
+        return { berhasil: false, alasan: 'REVISI_KEDALUWARSA', current: akhirPekan };
+      }
+
+      var sesi = RepoSesi.ambilById(params.sessionId);
+      if (!sesi || sesi.weekend_id !== params.weekendId) {
+        return { berhasil: false, alasan: 'TIDAK_DITEMUKAN', pesan: 'Sesi tidak ditemukan pada jadwal ini.' };
+      }
+
+      var penugasanIndividu = RepoPenugasan.daftarBySesi(params.sessionId).slice();
+      var penugasanKomunitas = RepoPenugasanKomunitas.daftarBySesi(params.sessionId).slice();
+      penugasanIndividu.forEach(function (a) { RepoPenugasan.hapus(a.assignment_id, pelakuId); });
+      penugasanKomunitas.forEach(function (c) { RepoPenugasanKomunitas.hapus(c.community_assignment_id, pelakuId); });
+      RepoSesi.hapusSesiDraft(params.sessionId);
+
+      var sisaSesi = RepoSesi.daftarByAkhirPekan(params.weekendId);
+      // Jangan ikut menghapus penugasan tingkat jadwal (mis. Hias Altar)
+      // karena permintaan pengguna hanya mencakup sesi yang dipilih.
+      var adaPenugasanTingkatJadwal = RepoPenugasanKomunitas.daftarByAkhirPekan(params.weekendId)
+        .some(function (c) { return !c.session_id; });
+      var akhirPekanDihapus = sisaSesi.length === 0 && !adaPenugasanTingkatJadwal;
+      var akhirPekanBaru = null;
+      if (akhirPekanDihapus) {
+        RepoAkhirPekan.hapusDraftKosong(params.weekendId);
+      } else {
+        var hasilRevisi = RepoAkhirPekan.perbaruiDenganCekRevisi(params.weekendId, params.revisiYangDiharapkan, {}, pelakuId);
+        if (!hasilRevisi.berhasil) return hasilRevisi;
+        akhirPekanBaru = hasilRevisi.akhirPekan;
+      }
+
+      RepoLogAudit.catat({
+        pelakuId: pelakuId,
+        aksi: 'HAPUS_SESI_DRAFT',
+        jenisEntitas: 'Session',
+        entitasId: params.sessionId,
+        nilaiLama: sesi,
+        nilaiBaru: {
+          weekendId: params.weekendId,
+          akhirPekanDihapus: akhirPekanDihapus,
+          jumlahPenugasanIndividuDibatalkan: penugasanIndividu.length,
+          jumlahPenugasanKomunitasDibatalkan: penugasanKomunitas.length
+        }
+      });
+
+      return {
+        berhasil: true,
+        sessionId: params.sessionId,
+        akhirPekanDihapus: akhirPekanDihapus,
+        akhirPekan: akhirPekanBaru,
+        jumlahPenugasanDibatalkan: penugasanIndividu.length + penugasanKomunitas.length
+      };
+    });
+  }
+
   /** params: { sessionId, weekendId, namaKhusus, tanggalSesi, pelakuId } */
   function perbaruiSesiKhusus(params) {
     LayananIzin.wajibkanPeran(params.pelakuId, [KONFIG.IZIN.ADMIN, KONFIG.IZIN.PENJADWAL]);
@@ -1555,7 +1666,7 @@ var LayananPenjadwalan = (function () {
   return {
     tugaskanIndividu: tugaskanIndividu, tugaskanIndividuBatch: tugaskanIndividuBatch, hapusPenugasanIndividu: hapusPenugasanIndividu,
     tugaskanKomunitas: tugaskanKomunitas, hapusPenugasanKomunitas: hapusPenugasanKomunitas,
-    hapusSesiKhusus: hapusSesiKhusus, perbaruiSesiKhusus: perbaruiSesiKhusus,
+    hapusSesiKhusus: hapusSesiKhusus, hapusSesiDraft: hapusSesiDraft, perbaruiSesiKhusus: perbaruiSesiKhusus,
     finalkanAkhirPekan: finalkanAkhirPekan, bukaKembaliAkhirPekan: bukaKembaliAkhirPekan
   };
 })();
@@ -1577,6 +1688,12 @@ var LayananOrang = (function () {
    */
   function ambilSemuaKandidatRingkas() {
     var daftarOrang = RepoOrang.daftar(false);
+    var daftarLingkungan = RepoLingkungan.daftar(true);
+    var daftarWilayah = RepoWilayah.daftar(true);
+    var petaLingkungan = {};
+    var petaWilayah = {};
+    daftarLingkungan.forEach(function (l) { petaLingkungan[l.lingkungan_id] = l; });
+    daftarWilayah.forEach(function (w) { petaWilayah[w.wilayah_id] = w; });
 
     var peranPerOrang = {};
     UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.PERAN_ORANG).forEach(function (pr) {
@@ -1602,10 +1719,16 @@ var LayananOrang = (function () {
     }
 
     return daftarOrang.map(function (p) {
+      var lingkungan = petaLingkungan[p.lingkungan_id] || null;
+      var wilayah = lingkungan ? (petaWilayah[lingkungan.wilayah_id] || null) : null;
       return {
         personId: p.person_id,
         nama: p.nama,
         aktif: p.aktif,
+        lingkunganId: lingkungan ? lingkungan.lingkungan_id : '',
+        namaLingkungan: lingkungan ? lingkungan.nama : 'Tanpa Lingkungan',
+        wilayahId: wilayah ? wilayah.wilayah_id : '',
+        namaWilayah: wilayah ? wilayah.nama : 'Tanpa Wilayah',
         roleIds: peranPerOrang[p.person_id] || [],
         terakhirBertugas: tanggalIsoAman_(petaTerakhir[p.person_id])
       };
@@ -1993,7 +2116,7 @@ function ambilAkhirPekanDalamRentang_(tglAwal, tglAkhir) {
 function api_ambilAtauBuatAkhirPekan(tanggalAcuan, sesiDipilih) {
   return bungkusApi_(function () {
     var pelakuId = pelakuSaatIni_();
-    LayananIzin.wajibkanPeran(pelakuId, [KONFIG.IZIN.ADMIN, KONFIG.IZIN.PENJADWAL, KONFIG.IZIN.PELIHAT]);
+    LayananIzin.wajibkanPeran(pelakuId, [KONFIG.IZIN.ADMIN, KONFIG.IZIN.PENJADWAL]);
     return UtilKunci.denganKunciSkrip(function () {
       var akhirPekan = RepoAkhirPekan.ambilAtauBuatUntukTanggal(tanggalAcuan, pelakuId);
       (sesiDipilih || []).forEach(function (s) {
@@ -2013,6 +2136,33 @@ function api_tambahSesiKhusus(weekendId, namaKhusus, tanggalSesi) {
     return UtilKunci.denganKunciSkrip(function () {
       RepoSesi.buatSesiKhusus(weekendId, namaKhusus.trim(), tanggalSesi, pelakuId);
       return LayananLaporan.buatLaporanAkhirPekan(weekendId);
+    });
+  });
+}
+
+/** Membuat Misa Khusus langsung dari satu tanggal kosong di kalender bulanan. */
+function api_buatMisaKhususPadaTanggal(tanggalSesi, namaKhusus) {
+  return bungkusApi_(function () {
+    var pelakuId = pelakuSaatIni_();
+    LayananIzin.wajibkanPeran(pelakuId, [KONFIG.IZIN.ADMIN, KONFIG.IZIN.PENJADWAL]);
+    if (!namaKhusus || !namaKhusus.trim()) throw new Error('Nama Misa Khusus wajib diisi.');
+    return UtilKunci.denganKunciSkrip(function () {
+      var akhirPekan = RepoAkhirPekan.ambilAtauBuatUntukTanggal(tanggalSesi, pelakuId);
+      if (akhirPekan.status === KONFIG.STATUS_AKHIR_PEKAN.FINAL) {
+        throw new Error('Tanggal ini sudah berada dalam jadwal final. Buka kunci jadwal lebih dulu.');
+      }
+      var sesi = RepoSesi.buatSesiKhusus(akhirPekan.weekend_id, namaKhusus.trim(), tanggalSesi, pelakuId);
+      RepoLogAudit.catat({
+        pelakuId: pelakuId,
+        aksi: 'TAMBAH_MISA_KHUSUS_DARI_KALENDER',
+        jenisEntitas: 'Session',
+        entitasId: sesi.session_id,
+        nilaiBaru: sesi,
+        alasanOverride: 'Misa Khusus: aturan kelayakan dan keadilan petugas dinonaktifkan.'
+      });
+      var detail = LayananLaporan.buatLaporanAkhirPekan(akhirPekan.weekend_id);
+      detail.sessionIdBaru = sesi.session_id;
+      return detail;
     });
   });
 }
@@ -2084,6 +2234,17 @@ function api_hapusSesiKhusus(params) {
   });
 }
 
+function api_hapusSesiDraft(params) {
+  return bungkusApi_(function () {
+    params.pelakuId = pelakuSaatIni_();
+    var hasil = LayananPenjadwalan.hapusSesiDraft(params);
+    if (hasil.berhasil && !hasil.akhirPekanDihapus) {
+      hasil.detail = LayananLaporan.buatLaporanAkhirPekan(params.weekendId);
+    }
+    return hasil;
+  });
+}
+
 function api_perbaruiSesiKhusus(params) {
   return bungkusApi_(function () {
     params.pelakuId = pelakuSaatIni_();
@@ -2129,7 +2290,7 @@ function buatDaftarOrangUntukKelola_(sertakanTidakAktif) {
       var peran = petaKonfigPeran[pr.role_id];
       return { personRoleId: pr.person_role_id, roleId: pr.role_id, namaPeran: peran ? peran.nama_peran : pr.role_id };
     });
-    return { personId: p.person_id, nama: p.nama, aktif: p.aktif, lingkunganId: p.lingkungan_id, namaLingkungan: lingkungan ? lingkungan.nama : '', namaWilayah: wilayah ? wilayah.nama : '', peranDimiliki: peranDimiliki };
+    return { personId: p.person_id, nama: p.nama, aktif: p.aktif, lingkunganId: p.lingkungan_id, namaLingkungan: lingkungan ? lingkungan.nama : '', wilayahId: wilayah ? wilayah.wilayah_id : '', namaWilayah: wilayah ? wilayah.nama : '', peranDimiliki: peranDimiliki };
   });
 }
 
