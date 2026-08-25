@@ -1,0 +1,17 @@
+{
+  "name": "liturgy-scheduling-system",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend": "npm --prefix functions run build",
+    "build": "npm run build:frontend && npm run build:backend",
+    "seed": "npm --prefix functions run seed",
+    "test": "npm --prefix functions run test",
+    "deploy:hosting": "firebase deploy --only hosting",
+    "deploy:functions": "firebase deploy --only functions",
+    "deploy:firestore": "firebase deploy --only firestore",
+    "deploy": "firebase deploy"
+  }
+}

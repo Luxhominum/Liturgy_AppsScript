@@ -166,9 +166,30 @@ var UtilCache = (function () {
   function properti_() { return PropertiesService.getScriptProperties(); }
   function cache_() { return CacheService.getScriptCache(); }
 
+  // Optimasi: cache semua versi properti dari PropertiesService dalam
+  // satu panggilan getProperties() pertama kali, lalu pakai dari memori.
+  // Sebelumnya setiap kunci cache memicu getProperty() (RPC sinkron
+  // 30–100ms), sehingga satu halaman load bisa kena 200–500ms overhead.
+  var versiDariProperti_ = null;
+
+  function muatSemuaVersi_() {
+    if (versiDariProperti_ !== null) return;
+    var semua = properti_().getProperties();
+    versiDariProperti_ = {};
+    var kunciList = Object.keys(semua);
+    for (var i = 0; i < kunciList.length; i++) {
+      var k = kunciList[i];
+      if (k.indexOf('cache_version:') === 0) {
+        var grup = k.substring('cache_version:'.length);
+        versiDariProperti_[grup] = semua[k];
+      }
+    }
+  }
+
   function versi(grup) {
     if (versiPending_[grup]) return versiPending_[grup];
-    return properti_().getProperty('cache_version:' + grup) || '1';
+    muatSemuaVersi_();
+    return versiDariProperti_[grup] || '1';
   }
 
   function invalidasi(grup) {
@@ -575,10 +596,26 @@ var UtilSheet = (function () {
       sheet.getRange(nomorBaris, indeksAwal, 1, nilaiRentang.length).setValues([nilaiRentang]);
       UtilPerforma.catat('sheet_update', mulaiTulis, { sheet: namaSheet, jumlahKolom: nilaiRentang.length });
     } else {
+      // Optimasi: alih-alih K× setValue terpisah (masing-masing RPC),
+      // baca baris saat ini sekali, terapkan perubahan di memori, lalu
+      // tulis seluruh rentang kolom yang berubah dalam satu setValues.
       var mulaiTulisFallback = Date.now();
-      for (var k = 0; k < kunci.length; k++) {
-        var namaKolom = kunci[k];
-        sheet.getRange(nomorBaris, peta[namaKolom]).setValue(perubahan[namaKolom]);
+      if (indeks.length > 1) {
+        var indeksAwalFb = Math.min.apply(null, indeks);
+        var indeksAkhirFb = Math.max.apply(null, indeks);
+        var jumlahKolFb = indeksAkhirFb - indeksAwalFb + 1;
+        var barisSaatIni = sheet.getRange(nomorBaris, indeksAwalFb, 1, jumlahKolFb).getValues()[0];
+        for (var k2 = 0; k2 < kunci.length; k2++) {
+          var offset = peta[kunci[k2]] - indeksAwalFb;
+          barisSaatIni[offset] = perubahan[kunci[k2]];
+        }
+        sheet.getRange(nomorBaris, indeksAwalFb, 1, jumlahKolFb).setValues([barisSaatIni]);
+      } else {
+        // Hanya 1 kolom — langsung setValue, tidak perlu batch.
+        for (var k = 0; k < kunci.length; k++) {
+          var namaKolom = kunci[k];
+          sheet.getRange(nomorBaris, peta[namaKolom]).setValue(perubahan[namaKolom]);
+        }
       }
       UtilPerforma.catat('sheet_update_fallback', mulaiTulisFallback, { sheet: namaSheet, jumlahKolom: kunci.length });
     }
@@ -1038,8 +1075,11 @@ var RepoKonfigAturan = (function () {
     }
     var versiBaru = RepoPengaturanSistem.naikkanVersiKebijakan();
     var aman = Object.assign({}, perubahan, { versi_kebijakan: versiBaru, diubah_pada: new Date(), diubah_oleh: pelakuId });
-    UtilSheet.perbaruiBarisById(SHEET, 'rule_id', ruleId, aman);
-    return ambilById(ruleId);
+    // Optimasi: langsung pakai existing.__baris dan kembalikan objek yang
+    // sudah diketahui, bukan baca ulang via ambilById (pola yang sama
+    // dengan buatRepoDasar_.perbarui).
+    UtilSheet.perbaruiBarisPadaNomor(SHEET, current.__baris, aman);
+    return Object.assign({}, current, aman);
   }
 
   return { daftar: daftar, ambilById: ambilById, perbaruiKonfigAturan: perbaruiKonfigAturan };
@@ -1069,8 +1109,9 @@ var RepoAkhirPekan = (function () {
 
   /** Mencari akhir pekan sebelum/sesudah, dipakai untuk cek layanan berturut-turut. */
   function ambilTetangga(weekendId) {
-    var target = dasar.ambilById(weekendId);
-    if (!target) return { sebelum: null, sesudah: null };
+    // Optimasi: cukup pakai daftar() saja (sudah di-cache per eksekusi),
+    // tidak perlu ambilById() terpisah karena keberadaan target dicek
+    // langsung saat traversal daftar yang sudah disortir.
     var semua = dasar.daftar(true).slice().sort(function (a, b) { return new Date(a.tanggal_acuan) - new Date(b.tanggal_acuan); });
     var idx = semua.findIndex(function (w) { return w.weekend_id === weekendId; });
     if (idx === -1) return { sebelum: null, sesudah: null };
@@ -1333,6 +1374,17 @@ var RepoPenugasanKomunitas = (function () {
 var RepoLogAudit = (function () {
   var SHEET = KONFIG.NAMA_SHEET.LOG_AUDIT;
 
+  // Optimasi: cache versi_kebijakan per eksekusi. Sebelumnya setiap
+  // catat() tunggal membaca Config sheet via ambilVersiKebijakan().
+  var versiKebijakanTerakhir_ = null;
+
+  function ambilVersiKebijakanCached_() {
+    if (versiKebijakanTerakhir_ === null) {
+      versiKebijakanTerakhir_ = RepoPengaturanSistem.ambilVersiKebijakan();
+    }
+    return versiKebijakanTerakhir_;
+  }
+
   function buatBaris_(entri, waktu, versiKebijakanDefault) {
     return {
       audit_id: UtilId.idBaru('audit_id'), waktu: waktu || new Date(), pelaku_id: entri.pelakuId,
@@ -1342,7 +1394,7 @@ var RepoLogAudit = (function () {
       rule_id: entri.ruleId || '', alasan_override: entri.alasanOverride || '',
       versi_kebijakan: entri.versiKebijakan !== undefined
         ? entri.versiKebijakan
-        : (versiKebijakanDefault !== undefined ? versiKebijakanDefault : RepoPengaturanSistem.ambilVersiKebijakan())
+        : (versiKebijakanDefault !== undefined ? versiKebijakanDefault : ambilVersiKebijakanCached_())
     };
   }
   function catat(entri) {
@@ -1426,15 +1478,32 @@ var LayananRingkasan = (function () {
     UtilPerforma.catat('read_models_backfill', mulai, { jumlahSesi: semuaSesi.length, jumlahPenugasan: semuaPenugasan.length });
   }
 
+  // Optimasi: cache hasil pengecekan infrastruktur dalam memori selama
+  // eksekusi berjalan. Sebelumnya setiap api_* memanggil 2× getProperty()
+  // (masing-masing RPC sinkron 30–100ms), padahal flag ini jarang berubah.
+  var infrastrukturSudahDicek_ = false;
+
   function pastikanInfrastruktur() {
+    if (infrastrukturSudahDicek_) return false;
     var props = PropertiesService.getScriptProperties();
-    if (props.getProperty(KUNCI_SIAP) === VERSI_INFRASTRUKTUR && props.getProperty(KUNCI_KOTOR) !== '1') return false;
+    // Satu panggilan getProperties() menggantikan 2× getProperty() terpisah.
+    var semua = props.getProperties();
+    if (semua[KUNCI_SIAP] === VERSI_INFRASTRUKTUR && semua[KUNCI_KOTOR] !== '1') {
+      infrastrukturSudahDicek_ = true;
+      return false;
+    }
     var ss = UtilSheet.ambilSpreadsheet();
     pastikanSheetDenganHeader_(ss, KONFIG.NAMA_SHEET.STATISTIK_ORANG);
     pastikanSheetDenganHeader_(ss, KONFIG.NAMA_SHEET.RINGKASAN_SESI);
     return UtilKunci.denganKunciSkrip(function () {
-      if (props.getProperty(KUNCI_SIAP) === VERSI_INFRASTRUKTUR && props.getProperty(KUNCI_KOTOR) !== '1') return false;
+      // Baca ulang di dalam kunci untuk menghindari race condition.
+      var semuaDalamKunci = props.getProperties();
+      if (semuaDalamKunci[KUNCI_SIAP] === VERSI_INFRASTRUKTUR && semuaDalamKunci[KUNCI_KOTOR] !== '1') {
+        infrastrukturSudahDicek_ = true;
+        return false;
+      }
       bangunUlang_();
+      infrastrukturSudahDicek_ = true;
       return true;
     }, 30000);
   }
@@ -1839,11 +1908,25 @@ var LayananKonflik = (function () {
       .map(function (pr) { return RepoOrang.ambilById(pr.person_id); })
       .filter(function (p) { return p && p.aktif === true; });
 
+    // Optimasi: bangun peta person_id → waktu terakhir bertugas SEKALI,
+    // lalu pakai di sort. Sebelumnya ambilTerakhirBertugas() dipanggil di
+    // dalam comparator sort (2×K×log(K) kali), setiap kali memfilter +
+    // menyortir ulang seluruh array Assignments — sangat lambat untuk
+    // peran dengan banyak kandidat (Misdinar, Lektor, dll).
+    var semuaPenugasan = UtilSheet.ambilSemuaBaris(KONFIG.NAMA_SHEET.PENUGASAN);
+    var petaTerakhir = {};
+    for (var i = 0; i < semuaPenugasan.length; i++) {
+      var a = semuaPenugasan[i];
+      if (a.status !== KONFIG.STATUS_PENUGASAN.AKTIF) continue;
+      var waktu = new Date(a.dibuat_pada).getTime();
+      if (!petaTerakhir[a.person_id] || waktu > petaTerakhir[a.person_id]) {
+        petaTerakhir[a.person_id] = waktu;
+      }
+    }
+
     kandidat.sort(function (a, b) {
-      var terakhirA = ambilTerakhirBertugas(a.person_id);
-      var terakhirB = ambilTerakhirBertugas(b.person_id);
-      var waktuA = terakhirA ? new Date(terakhirA.dibuat_pada).getTime() : 0; // belum pernah bertugas = paling diutamakan
-      var waktuB = terakhirB ? new Date(terakhirB.dibuat_pada).getTime() : 0;
+      var waktuA = petaTerakhir[a.person_id] || 0; // belum pernah bertugas = paling diutamakan
+      var waktuB = petaTerakhir[b.person_id] || 0;
       return waktuA - waktuB;
     });
     return kandidat;
@@ -3090,8 +3173,13 @@ function api_daftarOrang(sertakanTidakAktif) {
 function api_ambilDataKelolaPetugas() {
   return bungkusApi_(function () {
     return UtilCache.ambilAtauHitung('master', 'manage-people', function () {
+      // Optimasi: buatDaftarOrangUntukKelola_ sudah membaca Wilayah &
+      // Lingkungan secara internal; ambilSemuaBaris sudah di-cache per
+      // eksekusi, jadi pemanggilan daftar() di sini tidak membaca sheet
+      // ulang — tapi menghindari filter duplikat array yang tidak perlu.
+      var orang = buatDaftarOrangUntukKelola_(true);
       return {
-        orang: buatDaftarOrangUntukKelola_(true),
+        orang: orang,
         wilayah: RepoWilayah.daftar(true),
         lingkungan: RepoLingkungan.daftar(true)
       };

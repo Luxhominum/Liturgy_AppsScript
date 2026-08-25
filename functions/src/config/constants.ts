@@ -1,0 +1,73 @@
+export const ROLES = {
+  ADMIN: 'ADMIN',
+  SCHEDULER: 'SCHEDULER',
+  VIEWER: 'VIEWER'
+} as const;
+
+export const SESSION_TYPES = {
+  SABTU_SORE: 'SABTU_SORE',
+  MINGGU_PAGI: 'MINGGU_PAGI',
+  MINGGU_SORE: 'MINGGU_SORE',
+  KHUSUS: 'KHUSUS'
+} as const;
+
+export const WEEKEND_STATUS = {
+  DRAFT: 'DRAFT',
+  FINAL: 'FINAL'
+} as const;
+
+export const ASSIGNMENT_STATUS = {
+  ACTIVE: 'ACTIVE',
+  REMOVED: 'REMOVED'
+} as const;
+
+export const COMMUNITY_ASSIGNMENT_TYPE = {
+  PADUAN_SUARA: 'PADUAN_SUARA',
+  TATIB: 'TATIB',
+  HIAS_ALTAR: 'HIAS_ALTAR'
+} as const;
+
+export const ROLE_IDS = {
+  ORGANIS: 'ROL-ORGANIS',
+  PEMAZMUR: 'ROL-PEMAZMUR',
+  LEKTOR: 'ROL-LEKTOR',
+  MISDINAR: 'ROL-MISDINAR',
+  PRODIAKON: 'ROL-PRODIAKON'
+} as const;
+
+export const RULE_LEVELS = {
+  WAJIB: 'WAJIB',       // BLOCK
+  PERINGATAN: 'PERINGATAN', // WARNING
+  OTOMATIS: 'OTOMATIS'     // AUTO
+} as const;
+
+export const BUSINESS_RULES = {
+  BR_020_KELAYAKAN_PERAN: 'BR-020',
+  BR_026_KAPASITAS_KUOTA: 'BR-026',
+  BR_030_TUGAS_GANDA_SESI: 'BR-030',
+  BR_031_TUGAS_GANDA_AKHIR_PEKAN: 'BR-031',
+  BR_032_LAYANAN_BERTURUT: 'BR-032',
+  BR_013_BLACKLIST_PADUAN_SUARA: 'BR-013',
+  BR_041_KONFLIK_TATIB: 'BR-041',
+  BR_052_TUMPANG_TINDIH_PS_HIAS_ALTAR: 'BR-052',
+  BR_027_SARAN_LRU: 'BR-027',
+  BR_034_TERAKHIR_BERTUGAS: 'BR-034',
+  BR_051_HIAS_ALTAR_AKHIR_PEKAN: 'BR-051',
+  BR_062_STATUS_PROGRES: 'BR-062'
+} as const;
+
+export const COLLECTIONS = {
+  PEOPLE: 'people',
+  WILAYAH: 'wilayah',
+  LINGKUNGAN: 'lingkungan',
+  ROLE_CONFIG: 'role_config',
+  PERSON_ROLES: 'person_roles',
+  RULE_CONFIG: 'rule_config',
+  WEEKENDS: 'weekends',
+  SESSIONS: 'sessions',
+  ASSIGNMENTS: 'assignments',
+  COMMUNITY_ASSIGNMENTS: 'community_assignments',
+  AUDIT_LOGS: 'audit_logs',
+  USERS: 'users',
+  SYSTEM_CONFIG: 'system_config'
+} as const;

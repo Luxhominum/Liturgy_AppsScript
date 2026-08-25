@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #022C12;
+  --color-ink-soft: #6F8371;
+  --color-surface: #F6F4E8;
+  --color-surface-muted: #EAE8DD;
+  --color-accent: #F1F97E;
+  --color-white: #FFFFFF;
+  --color-blue-soft: #CFE8FF;
+  --color-lilac-soft: #CBB7DB;
+  --color-danger: #963F3A;
+  
+  --font-display: "Cinzel", Georgia, serif;
+  --font-body: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body {
+  @apply bg-surface text-ink font-body;
+}
+
+/* Emil Kowalski Spring Physics Design Tokens */
+:root {
+  --ease-spring-snappy: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring-bounce: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --ease-spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.spring-snappy {
+  transition-timing-function: var(--ease-spring-snappy);
+}
+
+.spring-bounce {
+  transition-timing-function: var(--ease-spring-bounce);
+}
+
+/* Tactile Spring Press Physics */
+.spring-press {
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease;
+}
+.spring-press:active {
+  transform: scale(0.95) translateY(1px);
+}
+
+/* Popover Spring Physics Keyframes */
+@keyframes springPopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(-6px);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.015) translateY(0.5px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-spring-pop {
+  animation: springPopIn 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top right;
+}
+
+/* Mobile Navigation Drawer Spring Physics */
+@keyframes springDrawerDown {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-spring-drawer {
+  animation: springDrawerDown 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top center;
+}
+
+/* Sliding Spring Pill Indicator */
+.spring-pill {
+  transition: all 0.28s cubic-bezier(0.34, 1.35, 0.64, 1);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  @apply font-display tracking-tight;
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* Tabular Numerals for Data & Time */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* True Glassmorphism Specular Edge Refraction */
+.glass-specular {
+  box-shadow: 
+    0 8px 32px 0 rgba(0, 0, 0, 0.04),
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.03);
+}
+
+/* Organic Liturgical Parchment Grain Overlay */
+.bg-parchment-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E");
+}
+
+/* Precision A4 Print Styles */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 10mm 10mm 10mm;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .print\:break-after-page,
+  .print\:page-break-after-always {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+}

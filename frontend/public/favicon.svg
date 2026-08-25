@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Outer Dark Gradient -->
+    <radialGradient id="darkBg" cx="50%" cy="50%" r="50%">
+      <stop offset="70%" stop-color="#0F1115" />
+      <stop offset="100%" stop-color="#000000" />
+    </radialGradient>
+
+    <!-- Sunburst Radiant Glow -->
+    <radialGradient id="sunburstGrad" cx="50%" cy="55%" r="48%">
+      <stop offset="0%" stop-color="#FFF5B8" />
+      <stop offset="35%" stop-color="#FFB300" />
+      <stop offset="70%" stop-color="#F57C00" />
+      <stop offset="100%" stop-color="#E65100" />
+    </radialGradient>
+
+    <!-- Gold Ribbon Gradient -->
+    <linearGradient id="goldRibbon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFF176" />
+      <stop offset="50%" stop-color="#FFD54F" />
+      <stop offset="100%" stop-color="#FFB300" />
+    </linearGradient>
+
+    <!-- Spire Dark Metal Gradient -->
+    <linearGradient id="spireGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1A202C" />
+      <stop offset="50%" stop-color="#4A5568" />
+      <stop offset="100%" stop-color="#1A202C" />
+    </linearGradient>
+
+    <!-- Church Wall Gradient -->
+    <linearGradient id="wallGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#E2E8F0" />
+    </linearGradient>
+
+    <!-- Gold Border Ring -->
+    <linearGradient id="goldRing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE082" />
+      <stop offset="50%" stop-color="#FFB300" />
+      <stop offset="100%" stop-color="#FFA000" />
+    </linearGradient>
+
+    <!-- Text Path Definitions for Curved Ribbons -->
+    <path id="topRibbonPath" d="M 85 270 A 185 185 0 0 1 245 85" fill="none" />
+    <path id="bottomRibbonPath" d="M 140 400 A 195 195 0 0 0 372 400" fill="none" />
+  </defs>
+
+  <!-- Base Black Circle -->
+  <circle cx="256" cy="256" r="250" fill="url(#darkBg)" stroke="#0A0D12" stroke-width="4" />
+
+  <!-- Inner Gold Sunburst Disc -->
+  <g>
+    <!-- Outer Gold Ring Rim -->
+    <circle cx="256" cy="256" r="195" fill="none" stroke="url(#goldRing)" stroke-width="6" />
+    
+    <!-- Sunburst Radiance Circle -->
+    <circle cx="256" cy="256" r="190" fill="url(#sunburstGrad)" />
+
+    <!-- Sunburst Beam Rays (Clockwise around center 256, 256) -->
+    <g opacity="0.45" fill="#FFFDE7">
+      <polygon points="256,256 220,68 256,66 292,68" />
+      <polygon points="256,256 345,95 375,115 320,256" />
+      <polygon points="256,256 415,170 435,200 256,256" />
+      <polygon points="256,256 440,265 435,305 256,256" />
+      <polygon points="256,256 385,365 355,395 256,256" />
+      <polygon points="256,256 167,95 137,115 256,256" />
+      <polygon points="256,256 97,170 77,200 256,256" />
+      <polygon points="256,256 72,265 77,305 256,256" />
+      <polygon points="256,256 127,365 157,395 256,256" />
+      <polygon points="256,256 240,444 272,444 256,256" />
+    </g>
+
+    <!-- Mountain Silhouette in Background -->
+    <polygon points="90,320 145,265 190,310 235,280 256,300 277,280 322,310 367,265 422,320 422,440 90,440" fill="#D97706" opacity="0.6" />
+  </g>
+
+  <!-- ========================================================================= -->
+  <!-- CHURCH ARCHITECTURE (GEREJA KATOLIK HTB SPM BOYOLALI) -->
+  <!-- ========================================================================= -->
+  <g>
+    <!-- Top Spire Cross -->
+    <g fill="#D32F2F" stroke="#B71C1C" stroke-width="2">
+      <rect x="252" y="75" width="8" height="42" rx="2" />
+      <rect x="240" y="87" width="32" height="7" rx="2" />
+    </g>
+
+    <!-- Spire Pyramid / Steeple -->
+    <polygon points="256,115 236,230 276,230" fill="url(#spireGrad)" />
+    <!-- Spire Left Highlight -->
+    <polygon points="256,115 236,230 256,230" fill="#2D3748" opacity="0.9" />
+
+    <!-- Spire Eaves & Bell Tower Base -->
+    <polygon points="228,230 284,230 280,246 232,246" fill="#D32F2F" />
+    <rect x="234" y="244" width="44" height="24" fill="#1A202C" />
+    <!-- Bell Tower Louvers / Window -->
+    <rect x="250" y="248" width="12" height="16" rx="3" fill="#0D1117" stroke="#CBD5E0" stroke-width="1.5" />
+
+    <!-- Church Main Roof Triangular Trusses (Dark Red / Brown Borders) -->
+    <polygon points="256,256 160,396 352,396" fill="#C53030" />
+    <!-- Inner Front Facade (White Triangle) -->
+    <polygon points="256,268 174,390 338,390" fill="url(#wallGrad)" stroke="#A0AEC0" stroke-width="2" />
+
+    <!-- Upper Facade Dark Ridge Shadow -->
+    <polygon points="256,268 250,390 262,390" fill="#CBD5E0" opacity="0.4" />
+
+    <!-- Red Cross on Facade Gable -->
+    <g fill="#D32F2F">
+      <!-- Main Vertical Beam -->
+      <rect x="252" y="288" width="8" height="52" rx="1" />
+      <!-- Upper Crossbeam -->
+      <rect x="242" y="300" width="28" height="6" rx="1" />
+      <!-- Lower Crossbeam -->
+      <rect x="236" y="318" width="40" height="6" rx="1" />
+    </g>
+
+    <!-- Lower Portal / Front Entrance Portico -->
+    <polygon points="256,340 200,425 312,425" fill="#D32F2F" />
+    <polygon points="256,350 210,422 302,422" fill="#FFFFFF" />
+    <!-- Entrance Arch Doors -->
+    <path d="M 236 422 L 236 385 Q 256 368 276 385 L 276 422 Z" fill="#9C4221" stroke="#5D1E0C" stroke-width="2" />
+    <!-- Inner Shadow of Doorway -->
+    <path d="M 244 422 L 244 394 Q 256 384 268 394 L 268 422 Z" fill="#381308" />
+  </g>
+
+  <!-- ========================================================================= -->
+  <!-- RIBBON BANNERS & TEXT (BIDANG LITURGI & HTB SPM BOYOLALI) -->
+  <!-- ========================================================================= -->
+  <!-- 1. Top Left Curved Ribbon: "Bidang Liturgi" -->
+  <g>
+    <path d="M 98 290 A 185 185 0 0 1 242 98 L 246 64 A 220 220 0 0 0 74 290 Z" fill="url(#goldRibbon)" stroke="#D97706" stroke-width="3" />
+    <text font-family="'Plus Jakarta Sans', 'Arial Black', sans-serif" font-weight="900" font-size="28" fill="#111827" letter-spacing="1">
+      <textPath href="#topRibbonPath" startOffset="18%">
+        Bidang Liturgi
+      </textPath>
+    </text>
+  </g>
+
+  <!-- 2. Bottom Curved Ribbon: "HTB SPM BOYOLALI" -->
+  <g>
+    <path d="M 148 408 A 185 185 0 0 0 364 408 L 388 444 A 225 225 0 0 1 124 444 Z" fill="url(#goldRibbon)" stroke="#D97706" stroke-width="3" />
+    <text font-family="'Plus Jakarta Sans', 'Arial Black', sans-serif" font-weight="900" font-size="26" fill="#111827" letter-spacing="2">
+      <textPath href="#bottomRibbonPath" startOffset="50%" text-anchor="middle">
+        HTB SPM BOYOLALI
+      </textPath>
+    </text>
+  </g>
+</svg>

@@ -2,4 +2,9 @@
 node_modules/
 .DS_Store
 Thumbs.db
+.firebase/
+frontend/node_modules/
+frontend/dist/
+functions/node_modules/
+functions/lib/
 
