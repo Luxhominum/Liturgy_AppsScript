@@ -418,7 +418,7 @@ export default function FairShareAnalyticsTab({ weekends }: FairShareAnalyticsTa
               <div>
                 <h3 className="font-bold text-base font-display text-ink flex items-center gap-2">
                   <span>🛡️</span>
-                  <span>Distribusi Tugas Tata Tertib (Tatib) — 35 Lingkungan</span>
+                  <span>Distribusi Tugas Tata Tertib (Tatib) — {Object.keys(LINGKUNGAN_TO_WILAYAH).length} Lingkungan</span>
                 </h3>
                 <p className="text-xs text-ink-soft mt-0.5">
                   Memastikan setiap lingkungan mendapatkan giliran menjaga ketertiban perayaan Ekaristi secara adil.
