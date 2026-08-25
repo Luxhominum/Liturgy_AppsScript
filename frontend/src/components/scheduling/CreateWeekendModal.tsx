@@ -30,7 +30,7 @@ export default function CreateWeekendModal({
   // Weekend regular sessions checkboxes
   const [includeSabtuSore, setIncludeSabtuSore] = useState(true);
   const [includeMingguPagi, setIncludeMingguPagi] = useState(true);
-  const [includeMingguSore, setIncludeMingguSore] = useState(true);
+  const [includeMingguSore, setIncludeMingguSore] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {

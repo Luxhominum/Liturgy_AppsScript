@@ -156,11 +156,39 @@ export default function PrintScheduleView({ initialWeekendId, onBack }: PrintSch
 
       const periodeStr = `${satFormatted.split(' ')[0]} & ${sunFormatted}`;
 
-      const sessionsRaw: Session[] = wData?.sessions && wData.sessions.length > 0 ? wData.sessions : [
-        { session_id: 'ses-1', weekend_id: opt.id, jenis_sesi: 'SABTU_SORE', tanggal_sesi: `${dateIso}T17:00:00Z`, status: 'DRAFT', nama_khusus: 'Misa Sabtu Sore' },
-        { session_id: 'ses-2', weekend_id: opt.id, jenis_sesi: 'MINGGU_PAGI', tanggal_sesi: `${dateIso}T07:00:00Z`, status: 'DRAFT', nama_khusus: 'Misa Minggu Pagi' },
-        { session_id: 'ses-3', weekend_id: opt.id, jenis_sesi: 'MINGGU_SORE', tanggal_sesi: `${dateIso}T17:00:00Z`, status: 'DRAFT', nama_khusus: 'Misa Minggu Sore' },
-      ];
+      const sessionsRaw: Session[] =
+        wData?.sessions && wData.sessions.length > 0
+          ? wData.sessions.filter((s: any) => {
+              // Hide unassigned Sunday afternoon if not explicitly a special mass
+              if (s.jenis_sesi === 'MINGGU_SORE' && !wData.is_special && !wData.isSpecialMass) {
+                const hasAssignments = (wData.assignments || []).some(
+                  (a: any) => a.session_id === s.session_id && a.status !== 'REMOVED'
+                );
+                const hasComm = (wData.communityAssignments || []).some(
+                  (c: any) => c.session_id === s.session_id && c.status !== 'REMOVED'
+                );
+                return hasAssignments || hasComm;
+              }
+              return true;
+            })
+          : [
+              {
+                session_id: 'ses-1',
+                weekend_id: opt.id,
+                jenis_sesi: 'SABTU_SORE',
+                tanggal_sesi: `${dateIso}T17:00:00Z`,
+                status: 'DRAFT',
+                nama_khusus: 'Misa Sabtu Sore',
+              },
+              {
+                session_id: 'ses-2',
+                weekend_id: opt.id,
+                jenis_sesi: 'MINGGU_PAGI',
+                tanggal_sesi: `${dateIso}T07:00:00Z`,
+                status: 'DRAFT',
+                nama_khusus: 'Misa Minggu Pagi',
+              },
+            ];
 
       const assignmentsRaw: Assignment[] = wData?.assignments || [];
       const communityRaw: CommunityAssignment[] = wData?.communityAssignments || [];
