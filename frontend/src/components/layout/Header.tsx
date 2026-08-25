@@ -50,25 +50,36 @@ export default function Header({ activeTab, onTabChange, user }: HeaderProps) {
   const isAdminTabActive = ['pengaturan-aturan', 'riwayat-audit', 'pengguna'].includes(activeTab);
 
   return (
-    <header className="sticky top-0 z-40 backdrop-blur-2xl bg-white/75 border-b border-white/80 shadow-xs">
+    <header className="sticky top-0 z-40 backdrop-blur-2xl bg-white/90 border-b border-amber-900/10 shadow-[0_4px_24px_-4px_rgba(2,44,18,0.07)]">
+      {/* Top Cathedral Gold & Emerald Accent Hairline */}
+      <div className="h-[2px] w-full bg-gradient-to-r from-emerald-950 via-[#D4AF37] to-emerald-950 opacity-80" />
+
       <div className="max-w-[94rem] mx-auto px-[clamp(1rem,3vw,3rem)] h-16 flex items-center justify-between gap-4">
         {/* Brand: Official Liturgical Church Crest & 2-Tier Typography */}
         <div
           onClick={() => onTabChange('beranda')}
           className="flex items-center gap-3 cursor-pointer group shrink-0 select-none spring-press"
         >
-          <div className="relative w-10 h-10 rounded-full shadow-md shadow-emerald-950/25 border border-amber-400/80 group-hover:border-amber-300 group-hover:scale-105 transition-all duration-300 overflow-hidden flex items-center justify-center shrink-0">
+          <div className="relative w-10 h-10 rounded-full shadow-md shadow-emerald-950/20 border-2 border-[#D4AF37] ring-2 ring-amber-400/30 group-hover:ring-amber-400/70 group-hover:scale-105 transition-all duration-300 overflow-hidden flex items-center justify-center shrink-0 bg-white">
             <ParishLogo className="w-full h-full object-contain" />
           </div>
           <div>
-            <span className="font-display font-bold text-base md:text-lg text-ink tracking-tight block leading-tight group-hover:text-emerald-950 transition-colors">
+            <span className="font-display font-bold text-base md:text-lg text-[#022C12] tracking-tight block leading-tight group-hover:text-emerald-950 transition-colors">
               Penjadwalan Liturgi
             </span>
-            <span className="text-[10px] font-bold tracking-[0.16em] text-emerald-800 uppercase flex items-center gap-1 mt-0.5">
-              <span>BIDANG LITURGI HTB SPM BOYOLALI</span>
-              <span className="text-[8px] opacity-50">•</span>
-              <span className="text-[9px] font-semibold opacity-75">KAS</span>
-            </span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="text-[9px] font-bold tracking-[0.14em] text-emerald-900 uppercase">
+                BIDANG LITURGI
+              </span>
+              <span className="text-[8px] opacity-30 text-[#022C12]">•</span>
+              <span className="text-[9px] font-bold tracking-[0.12em] text-amber-800 uppercase">
+                HTB SPM BOYOLALI
+              </span>
+              <span className="text-[8px] opacity-30 text-[#022C12]">•</span>
+              <span className="text-[8.5px] font-mono font-bold text-emerald-950 bg-emerald-100/80 px-1 py-0.2 rounded border border-emerald-300/60">
+                KAS
+              </span>
+            </div>
           </div>
         </div>
 
@@ -170,19 +181,22 @@ export default function Header({ activeTab, onTabChange, user }: HeaderProps) {
               <button
                 type="button"
                 onClick={() => setProfilePopoverOpen(!profilePopoverOpen)}
-                className="flex items-center gap-2.5 bg-white/85 hover:bg-white p-1 pl-1.5 pr-3 rounded-full border border-white shadow-xs backdrop-blur-md cursor-pointer spring-press hover:scale-[1.02]"
+                className="flex items-center gap-2.5 bg-gradient-to-b from-white to-surface/90 hover:from-white hover:to-white p-1 pl-1.5 pr-3 rounded-full border border-amber-900/15 shadow-xs backdrop-blur-md cursor-pointer spring-press hover:scale-[1.02] hover:border-amber-900/30 transition-all"
               >
-                {firebaseUser.photoURL ? (
-                  <img
-                    src={firebaseUser.photoURL}
-                    alt={user.displayName}
-                    className="w-7 h-7 rounded-full object-cover border border-white shadow-2xs"
-                  />
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center font-bold text-xs text-ink">
-                    {user.displayName.charAt(0)}
-                  </div>
-                )}
+                <div className="relative">
+                  {firebaseUser.photoURL ? (
+                    <img
+                      src={firebaseUser.photoURL}
+                      alt={user.displayName}
+                      className="w-7 h-7 rounded-full object-cover border border-white shadow-2xs"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-[#022C12] text-[#D8EB73] flex items-center justify-center font-bold text-xs">
+                      {user.displayName.charAt(0)}
+                    </div>
+                  )}
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full ring-1 ring-emerald-500/20" />
+                </div>
                 <div className="hidden sm:block text-left">
                   <div className="text-xs font-bold text-ink truncate max-w-[120px]">
                     {user.displayName}
