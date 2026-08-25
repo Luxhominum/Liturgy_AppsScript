@@ -48,6 +48,7 @@ export default function PublicLandingPage({
   const [officerSearch, setOfficerSearch] = useState('');
   const [isGuidelinesOpen, setIsGuidelinesOpen] = useState(false);
 
+  const [allWeekends, setAllWeekends] = useState<any[]>([]);
   const { user } = useAuth();
 
   // Subscribe to real weekends in Firestore
@@ -56,6 +57,7 @@ export default function PublicLandingPage({
       collection(db, 'weekends'),
       (snap) => {
         const weekends = snap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+        setAllWeekends(weekends);
         if (weekends.length > 0) {
           const latest = weekends.find((w) => w.status === 'FINAL') || weekends[0];
           
@@ -818,11 +820,54 @@ export default function PublicLandingPage({
                     </div>
                   </div>
 
-                  <div className="text-xs text-ink-soft bg-surface/70 p-2.5 rounded-xl border border-surface-muted space-y-1">
-                    <div className="font-semibold text-ink text-[11px]">Jadwal Misa:</div>
-                    <div className="text-[11px]">Sabtu: 17.00 WIB</div>
-                    <div className="text-[11px]">Minggu: 07.00 & 17.00 WIB</div>
-                  </div>
+                  {(() => {
+                    const matchedWkd = allWeekends.find(
+                      (w) => w.id === `w-${item.dateIso}` || w.tanggal_acuan === item.dateIso
+                    );
+                    const sessions =
+                      matchedWkd && matchedWkd.sessions && matchedWkd.sessions.length > 0
+                        ? matchedWkd.sessions.map((s: any) => ({
+                            name:
+                              s.nama_khusus ||
+                              (s.jenis_sesi === 'SABTU_SORE'
+                                ? 'Sabtu Sore'
+                                : s.jenis_sesi === 'MINGGU_PAGI'
+                                ? 'Minggu Pagi'
+                                : 'Minggu Sore'),
+                            time: s.waktu_mulai
+                              ? s.waktu_mulai.includes('WIB')
+                                ? s.waktu_mulai
+                                : `${s.waktu_mulai} WIB`
+                              : s.jenis_sesi === 'MINGGU_PAGI'
+                              ? '07.00 WIB'
+                              : '17.00 WIB',
+                          }))
+                        : [
+                            { name: 'Sabtu Sore', time: '17.00 WIB' },
+                            { name: 'Minggu Pagi', time: '07.00 WIB' },
+                          ];
+
+                    return (
+                      <div className="text-xs text-ink-soft bg-surface/70 p-2.5 rounded-xl border border-surface-muted space-y-1.5">
+                        <div className="font-semibold text-ink text-[11px] flex justify-between items-center">
+                          <span>Jadwal Misa:</span>
+                          {matchedWkd?.status === 'FINAL' && (
+                            <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded border border-emerald-300">
+                              ✓ Resmi
+                            </span>
+                          )}
+                        </div>
+                        {sessions.map((s: any, sIdx: number) => (
+                          <div key={sIdx} className="flex justify-between text-[11px] items-center">
+                            <span>• {s.name}</span>
+                            <span className="font-mono font-semibold text-emerald-950 bg-white/80 px-1.5 py-0.5 rounded border border-surface-muted/60">
+                              {s.time}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <Button
