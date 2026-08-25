@@ -76,9 +76,29 @@ export const WILAYAH_LIST = [
   'MARIA RATU',
   'MARIA RATU ROSARI',
   'MARIA TAK BERNODA',
-  // Wilayah Khusus Paduan Suara:
-  'GRASIA',
-  'LUAR PAROKI',
-  'LAIN LAIN',
-  'BECANBO',
 ];
+
+export const SPECIAL_CHOIR_GROUPS = [
+  { id: 'GRASIA', label: 'Koor GRASIA' },
+  { id: 'BECANBO', label: 'Koor BECANBO' },
+  { id: 'LUAR PAROKI', label: 'Paduan Suara Luar Paroki' },
+  { id: 'LAIN LAIN', label: 'Koor Lain-lain / Kategorial' },
+];
+
+export const formatChoirDisplayName = (choirAss: any): string => {
+  if (!choirAss) return '(Belum Ditugaskan)';
+  if (choirAss.lingkungan_id) {
+    return `Lingkungan ${choirAss.lingkungan_id}`;
+  }
+  const wil = choirAss.wilayah_id || '';
+  if (!wil) return '(Belum Ditugaskan)';
+  if (wil.startsWith('KHUSUS:')) {
+    return wil.replace('KHUSUS:', '').trim();
+  }
+  const upper = wil.toUpperCase().trim();
+  const matchedSpecial = SPECIAL_CHOIR_GROUPS.find((s) => s.id === upper);
+  if (matchedSpecial) {
+    return matchedSpecial.label;
+  }
+  return `Wilayah ${wil}`;
+};

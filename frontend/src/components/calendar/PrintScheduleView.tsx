@@ -5,6 +5,7 @@ import { Card, Button, ParishLogo } from '../ui';
 import { exportScheduleCsv } from '../../utils/exportUtils';
 import { REAL_OFFICERS_DATA } from '../../data/realOfficers';
 import { getLiturgicalInfo } from '../../utils/liturgicalCalendar';
+import { formatChoirDisplayName } from '../../data/lingkunganWilayahMap';
 import type { Session, Assignment, CommunityAssignment } from '../../types';
 
 interface PrintScheduleViewProps {
@@ -203,8 +204,8 @@ export default function PrintScheduleView({ initialWeekendId, onBack }: PrintSch
         const choirAss = communityRaw.find((c) => c.session_id === s.session_id && c.jenis_penugasan === 'PADUAN_SUARA' && c.status !== 'REMOVED');
         const tatibAss = communityRaw.find((c) => c.session_id === s.session_id && c.jenis_penugasan === 'TATIB' && c.status !== 'REMOVED');
 
-        const koorStr = choirAss ? (choirAss.wilayah_id ? `Wilayah ${choirAss.wilayah_id}` : (choirAss.lingkungan_id ? `Lingkungan ${choirAss.lingkungan_id}` : '-')) : '(Belum Ditugaskan)';
-        const tatibStr = tatibAss ? (tatibAss.lingkungan_id ? `Lingkungan ${tatibAss.lingkungan_id}` : (tatibAss.wilayah_id ? `Grup ${tatibAss.wilayah_id}` : '-')) : '(Belum Ditugaskan)';
+        const koorStr = formatChoirDisplayName(choirAss);
+        const tatibStr = tatibAss ? (tatibAss.lingkungan_id ? `Lingkungan ${tatibAss.lingkungan_id}` : (tatibAss.wilayah_id ? `${tatibAss.wilayah_id}` : '-')) : '(Belum Ditugaskan)';
 
         const organists = assignmentsRaw.filter((a) => a.session_id === s.session_id && a.role_id === 'ROL-ORGANIS' && a.status !== 'REMOVED').map((a) => getOfficerInfo(a.person_id));
         const psalms = assignmentsRaw.filter((a) => a.session_id === s.session_id && a.role_id === 'ROL-PEMAZMUR' && a.status !== 'REMOVED').map((a) => getOfficerInfo(a.person_id));

@@ -1,6 +1,6 @@
 import { useState, type ChangeEvent } from 'react';
 import { Card, Chip, Select, Dialog, Button } from '../ui';
-import { LINGKUNGAN_TO_WILAYAH } from '../../data/lingkunganWilayahMap';
+import { LINGKUNGAN_TO_WILAYAH, formatChoirDisplayName } from '../../data/lingkunganWilayahMap';
 import type { Session, Assignment, CommunityAssignment, RoleConfig, Person } from '../../types';
 
 interface SessionCardProps {
@@ -489,12 +489,7 @@ export default function SessionCard({
                 <span className="text-xs text-ink-soft italic">Belum ada Koor yang ditugaskan di sesi ini.</span>
               ) : (
                 sessionChoirList.map((c) => {
-                  const parentWilayah = c.lingkungan_id ? LINGKUNGAN_TO_WILAYAH[c.lingkungan_id.toUpperCase()] : '';
-                  const chipLabel = c.lingkungan_id
-                    ? `Lingkungan ${c.lingkungan_id}${parentWilayah ? ` (${parentWilayah})` : ''}`
-                    : c.wilayah_id?.startsWith('KHUSUS:')
-                    ? `⭐ ${c.wilayah_id.replace('KHUSUS:', '').trim()}`
-                    : `Wilayah ${c.wilayah_id}`;
+                  const chipLabel = formatChoirDisplayName(c);
 
                   return (
                     <Chip

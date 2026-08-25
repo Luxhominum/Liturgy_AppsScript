@@ -328,11 +328,14 @@ export default function FairShareAnalyticsTab({ weekends }: FairShareAnalyticsTa
                   </p>
                 </div>
                 <Badge variant="draft" className="text-[10px] font-mono">
-                  6 Wilayah
+                  {ALL_WILAYAHS.length} Wilayah Induk
                 </Badge>
               </div>
 
               <div className="space-y-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-ink-soft">
+                  🏛️ 12 Wilayah Paroki
+                </div>
                 {ALL_WILAYAHS.map((wil) => {
                   const data = communityAnalytics.choirByWilayah[wil] || { count: 0, lastDate: '-' };
                   const maxCount = Math.max(...Object.values(communityAnalytics.choirByWilayah).map((v) => v.count), 1);
@@ -360,6 +363,30 @@ export default function FairShareAnalyticsTab({ weekends }: FairShareAnalyticsTa
                     </div>
                   );
                 })}
+
+                {/* Special Choirs (Non-Wilayah) */}
+                {Object.keys(communityAnalytics.choirByWilayah).some((k) => !ALL_WILAYAHS.includes(k) && communityAnalytics.choirByWilayah[k].count > 0) && (
+                  <div className="pt-2 border-t border-surface-muted space-y-2">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-ink-soft">
+                      🎵 Kelompok Koor Kategorial & Eksternal
+                    </div>
+                    {Object.entries(communityAnalytics.choirByWilayah)
+                      .filter(([k, v]) => !ALL_WILAYAHS.includes(k) && v.count > 0)
+                      .map(([grup, data]) => {
+                        const label = grup.startsWith('KHUSUS:') ? grup.replace('KHUSUS:', '').trim() : `Koor ${grup}`;
+                        return (
+                          <div key={grup} className="space-y-1.5 p-3 rounded-2xl bg-amber-50/50 border border-amber-200/60">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="font-bold text-amber-950">⭐ {label}</span>
+                              <span className="font-mono font-bold text-amber-950 bg-amber-100 px-2 py-0.5 rounded-lg border border-amber-300">
+                                {data.count} Kali
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
               </div>
             </Card>
 
